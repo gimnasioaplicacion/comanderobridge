@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Inyecta en ios/App/App/Info.plist los permisos que necesita el Bridge
 # (red local + impresión por Bonjour + declaración de cifrado para App Store)
-# y corrige SWIFT_VERSION = 3/3.0 del target SwiftSocket a 5.0.
+# y corrige la compatibilidad Swift de SwiftSocket/CocoaPods para Xcode actual.
 # Ejecutar después de `npx cap sync ios`.
 set -euo pipefail
 
-PLIST="$(cd "$(dirname "$0")" && pwd)/ios/App/App/Info.plist"
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+IOS_APP_DIR="$BASE_DIR/ios/App"
+PLIST="$IOS_APP_DIR/App/Info.plist"
+PODS_DIR="$IOS_APP_DIR/Pods"
+
 [ -f "$PLIST" ] || { echo "No existe $PLIST. Ejecuta antes: npx cap add ios"; exit 1; }
 
 set_str()  { /usr/libexec/PlistBuddy -c "Delete :$1" "$PLIST" 2>/dev/null || true
@@ -26,13 +30,16 @@ set_bool ITSAppUsesNonExemptEncryption false
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PLIST"
 
-echo "Info.plist actualizado."
+(cd "$IOS_APP_DIR" && pod update SwiftSocket)
 
-# Corregir SWIFT_VERSION de SwiftSocket (se genera como 3.0 y Xcode lo rechaza).
-PODS_PBXPROJ="$(cd "$(dirname "$0")" && pwd)/ios/App/Pods/Pods.xcodeproj/project.pbxproj"
-if [ -f "$PODS_PBXPROJ" ]; then
-  perl -pi -e 's/SWIFT_VERSION\s*=\s*(["'"'"']?)(?:3|3\.0)\1\s*;/SWIFT_VERSION = 5.0;/g' "$PODS_PBXPROJ"
-  echo "SWIFT_VERSION corregido a 5.0 en $PODS_PBXPROJ"
+# Corregir metadatos de SwiftSocket/CocoaPods que Xcode puede seguir leyendo como Swift 3.
+if [ -d "$PODS_DIR" ]; then
+  while IFS= read -r -d '' file; do
+    perl -pi -e 's/SWIFT_VERSION\s*=\s*(["'"'"'"']?)(?:3|3\.0)\s*;/SWIFT_VERSION = 5.0;/g; s/LastSwiftMigration\s*=\s*(["'"'"'"']?)[^;"'"'"'"']+\s*;/LastSwiftMigration = 1500;/g; s/LastUpgradeCheck\s*=\s*(["'"'"'"']?)[^;"'"'"'"']+\s*;/LastUpgradeCheck = 1500;/g' "$file"
+  done < <(find "$PODS_DIR" -type f \( -name '*.pbxproj' -o -name '*.xcconfig' \) -print0)
+  echo "SWIFT_VERSION corregido a 5.0"
 else
-  echo "Advertencia: no existe $PODS_PBXPROJ; no se pudo corregir SWIFT_VERSION."
+  echo "Advertencia: no existe $PODS_DIR; no se pudo corregir la compatibilidad Swift."
 fi
+
+echo "Info.plist y compatibilidad Swift actualizados."
