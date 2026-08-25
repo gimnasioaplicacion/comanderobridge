@@ -5,6 +5,7 @@
   "description": "Comandero Bridge para iPad y Android (agente local de impresión)",
   "scripts": {
     "sync": "cap sync",
+    "sync:ios": "cap sync ios && bash ios-permisos.sh",
     "add:ios": "cap add ios",
     "add:android": "cap add android",
     "open:ios": "cap open ios",
