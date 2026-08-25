@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Inyecta en ios/App/App/Info.plist los permisos que necesita el Bridge
-# (red local + impresión por Bonjour + declaración de cifrado para App Store).
-# Ejecutar después de `npx cap add ios` y antes de `npx cap sync ios`.
+# (red local + impresión por Bonjour + declaración de cifrado para App Store)
+# y corrige SWIFT_VERSION = 3/3.0 del target SwiftSocket a 5.0.
+# Ejecutar después de `npx cap sync ios`.
 set -euo pipefail
 
 PLIST="$(cd "$(dirname "$0")" && pwd)/ios/App/App/Info.plist"
@@ -26,3 +27,12 @@ set_bool ITSAppUsesNonExemptEncryption false
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PLIST"
 
 echo "Info.plist actualizado."
+
+# Corregir SWIFT_VERSION de SwiftSocket (se genera como 3.0 y Xcode lo rechaza).
+PODS_PBXPROJ="$(cd "$(dirname "$0")" && pwd)/ios/App/Pods/Pods.xcodeproj/project.pbxproj"
+if [ -f "$PODS_PBXPROJ" ]; then
+  perl -pi -e 's/SWIFT_VERSION\s*=\s*(["'"'"']?)(?:3|3\.0)\1\s*;/SWIFT_VERSION = 5.0;/g' "$PODS_PBXPROJ"
+  echo "SWIFT_VERSION corregido a 5.0 en $PODS_PBXPROJ"
+else
+  echo "Advertencia: no existe $PODS_PBXPROJ; no se pudo corregir SWIFT_VERSION."
+fi
