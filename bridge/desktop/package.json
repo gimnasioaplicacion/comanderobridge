@@ -1,0 +1,18 @@
+{
+  "name": "comandero-bridge",
+  "productName": "Comandero Bridge",
+  "version": "0.1.9",
+  "description": "Agente local de impresión silenciosa para Comandero",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "package:linux": "electron-packager . ComanderoBridge --platform=linux --arch=x64 --out=release --overwrite --ignore='^/release' --ignore='^/node_modules/(electron|@electron|electron-packager)'",
+    "package:mac": "electron-packager . ComanderoBridge --platform=darwin --arch=universal --out=release --overwrite --ignore='^/release' --ignore='^/node_modules/(electron|@electron|electron-packager)'",
+    "package:win": "electron-packager . ComanderoBridge --platform=win32 --arch=x64 --out=release --overwrite --ignore='^/release' --ignore='^/node_modules/(electron|@electron|electron-packager)'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@electron/packager": "^18.3.3",
+    "electron": "^31.0.0"
+  }
+}

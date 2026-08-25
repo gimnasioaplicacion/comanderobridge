@@ -1,0 +1,10 @@
+node_modules/
+desktop/release/
+mobile/ios/
+mobile/android/
+mobile/www/capacitor.js
+mobile/www/capacitor-plugins.js
+mobile/www/cordova*.js
+mobile/www/plugins/
+.DS_Store
+*.log
