@@ -1,0 +1,11 @@
+{
+  "appId": "online.comandero.bridge",
+  "appName": "Comandero Bridge",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

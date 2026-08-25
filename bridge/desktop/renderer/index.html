@@ -1,0 +1,122 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/><title>Comandero Bridge</title>
+<style>
+  :root { color-scheme: light dark; font-family: -apple-system, system-ui, Segoe UI, sans-serif; }
+  body { margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  .muted { color: #94a3b8; font-size: 13px; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-top: 16px; }
+  label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
+  input, select { width: 100%; padding: 10px; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+  button { padding: 10px 16px; background: #e2552b; color: white; border: 0; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  button.secondary { background: transparent; border: 1px solid #475569; color: #e2e8f0; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #64748b; display: inline-block; }
+  .dot.on { background: #22c55e; } .dot.err { background: #ef4444; }
+  .err { color: #f87171; font-size: 12px; margin-top: 8px; }
+  .ok { color: #4ade80; font-size: 12px; margin-top: 8px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+</style></head>
+<body>
+  <h1>Comandero Bridge</h1>
+  <div class="muted"><span id="subtitle">Cargando…</span> · v0.1.5</div>
+
+  <div id="unpaired" class="card" style="display:none">
+    <label>Código de emparejamiento (6 dígitos)</label>
+    <input id="code" maxlength="6" placeholder="123456" />
+    <div style="height:10px"></div>
+    <button id="pairBtn">Vincular</button>
+    <div id="pairErr" class="err"></div>
+    <p class="muted" style="margin-top:14px">
+      Pídelo en la app web: <strong>Admin → Impresoras → Agentes locales → Vincular nuevo agente</strong>.
+    </p>
+  </div>
+
+  <div id="paired" class="card" style="display:none">
+    <div class="row"><span class="dot" id="dot"></span><strong id="statusText">Iniciando…</strong></div>
+    <div class="muted" id="lastJob" style="margin-top:6px"></div>
+    <div style="height:14px"></div>
+    <div class="muted">
+      El Bridge no elige una impresora instalada en el Mac. La impresora WiFi/LAN se configura en la app web con su IP y puerto 9100.
+    </div>
+    <div style="height:14px"></div>
+    <label>Probar impresora de red por IP</label>
+    <div class="grid2">
+      <input id="testHost" placeholder="192.168.1.50" />
+      <input id="testPort" type="number" value="9100" />
+    </div>
+    <div style="height:10px"></div>
+    <div class="row">
+      <button class="secondary" id="testBtn">Imprimir prueba por IP</button>
+    </div>
+    <div id="testMsg"></div>
+    <div style="height:16px"></div>
+    <button class="secondary" id="unpairBtn">Desvincular este agente</button>
+  </div>
+
+<script>
+const SB_URL = 'https://mfzutyocbmwcjjiywzsn.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1menV0eW9jYm13Y2pqaXl3enNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTQ5NzQsImV4cCI6MjA5MzAzMDk3NH0.INDptBoWSFJ7dJ_j8ipUq3KYMp4V82eRG_iZN0Isg-w';
+
+async function refresh() {
+  const cfg = await window.bridge.getConfig();
+  const paired = !!(cfg && cfg.agentId);
+  document.getElementById('unpaired').style.display = paired ? 'none' : 'block';
+  document.getElementById('paired').style.display = paired ? 'block' : 'none';
+  document.getElementById('subtitle').textContent = paired
+    ? 'Agente vinculado. Imprimiendo en silencio cuando llegan tickets.'
+    : 'Instala el código que verás en la app para empezar.';
+}
+
+document.getElementById('pairBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('pairBtn');
+  const errEl = document.getElementById('pairErr');
+  const code = document.getElementById('code').value.replace(/\D/g, '');
+  document.getElementById('code').value = code;
+  errEl.textContent = '';
+  if (code.length !== 6) { errEl.textContent = 'Introduce el código de 6 dígitos.'; return; }
+  btn.disabled = true; const prev = btn.textContent; btn.textContent = 'Vinculando…';
+  try {
+    const r = await window.bridge.pair({ code, supabaseUrl: SB_URL, supabaseKey: SB_KEY });
+    if (!r || !r.ok) { errEl.textContent = (r && r.error) ? r.error : 'No se pudo vincular (sin respuesta).'; return; }
+    await refresh();
+  } catch (e) {
+    errEl.textContent = 'Error: ' + (e && e.message ? e.message : String(e));
+  } finally {
+    btn.disabled = false; btn.textContent = prev;
+  }
+});
+
+document.getElementById('code').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('pairBtn').click();
+});
+
+document.getElementById('unpairBtn').addEventListener('click', async () => {
+  if (!confirm('¿Desvincular este agente? Las impresoras dejarán de imprimir hasta volver a vincularlo.')) return;
+  await window.bridge.unpair(); refresh();
+});
+
+document.getElementById('testBtn').addEventListener('click', async () => {
+  const host = document.getElementById('testHost').value.trim();
+  const port = Number(document.getElementById('testPort').value || 9100);
+  const msg = document.getElementById('testMsg'); msg.textContent = 'Imprimiendo…'; msg.className = 'muted';
+  if (!host) { msg.textContent = 'Introduce la IP de la impresora.'; msg.className = 'err'; return; }
+  const r = await window.bridge.printTest({ host, port, backend: 'escpos-tcp' });
+  msg.textContent = r.ok ? '✓ Enviado a la impresora' : '✗ ' + r.error;
+  msg.className = r.ok ? 'ok' : 'err';
+});
+
+window.bridge.onStatus((s) => {
+  const dot = document.getElementById('dot');
+  dot.className = 'dot ' + (s.error ? 'err' : (s.online ? 'on' : ''));
+  document.getElementById('statusText').textContent = s.error ? 'Error: ' + s.error : (s.online ? 'Conectado y a la escucha' : 'Desconectado');
+  if (s.lastJob) {
+    document.getElementById('lastJob').textContent =
+      'Último trabajo: ' + new Date(s.lastJob.at).toLocaleTimeString() + (s.lastJob.ok ? ' ✓' : ' ✗ ' + (s.lastJob.error || ''));
+  }
+});
+
+refresh();
+</script>
+</body></html>
