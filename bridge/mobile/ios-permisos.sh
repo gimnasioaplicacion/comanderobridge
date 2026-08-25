@@ -30,6 +30,35 @@ set_bool ITSAppUsesNonExemptEncryption false
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PLIST"
 
+# --- Universal: iPhone + iPad -------------------------------------------
+# TARGETED_DEVICE_FAMILY = 1,2 (1 = iPhone, 2 = iPad)
+PBXPROJ="$IOS_APP_DIR/App.xcodeproj/project.pbxproj"
+if [ -f "$PBXPROJ" ]; then
+  if grep -q "TARGETED_DEVICE_FAMILY" "$PBXPROJ"; then
+    perl -pi -e 's/TARGETED_DEVICE_FAMILY[ \t]*=[ \t]*"?[^;"]+"?[ \t]*;/TARGETED_DEVICE_FAMILY = "1,2";/g' "$PBXPROJ"
+  else
+    perl -pi -e 's/(PRODUCT_BUNDLE_IDENTIFIER[^\n]*\n)/$1\t\t\t\tTARGETED_DEVICE_FAMILY = "1,2";\n/g' "$PBXPROJ"
+  fi
+  echo "TARGETED_DEVICE_FAMILY = 1,2 (iPhone + iPad)"
+else
+  echo "Advertencia: no existe $PBXPROJ; no se pudo forzar iPhone + iPad."
+fi
+
+# Orientaciones para iPhone y iPad (si faltan, la app no arranca en iPhone)
+/usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:2 string UIInterfaceOrientationLandscapeRight" "$PLIST"
+
+/usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationPortraitUpsideDown" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight" "$PLIST"
+
+
 if [ -f "$IOS_APP_DIR/Podfile" ]; then
   (cd "$IOS_APP_DIR" && pod update SwiftSocket)
 else
