@@ -30,7 +30,11 @@ set_bool ITSAppUsesNonExemptEncryption false
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" "$PLIST"
 
-(cd "$IOS_APP_DIR" && pod update SwiftSocket)
+if [ -f "$IOS_APP_DIR/Podfile" ]; then
+  (cd "$IOS_APP_DIR" && pod update SwiftSocket)
+else
+  echo "Advertencia: no existe $IOS_APP_DIR/Podfile; se omite pod update SwiftSocket."
+fi
 
 # Corregir metadatos de SwiftSocket/CocoaPods que Xcode puede seguir leyendo como Swift 3.
 if [ -d "$PODS_DIR" ]; then
