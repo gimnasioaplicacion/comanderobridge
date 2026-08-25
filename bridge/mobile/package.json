@@ -6,11 +6,13 @@
   "scripts": {
     "sync": "cap sync",
     "sync:ios": "cap sync ios && bash ios-permisos.sh",
+    "sync:android": "cap sync android && bash android-preparar.sh",
     "add:ios": "cap add ios",
     "add:android": "cap add android",
     "open:ios": "cap open ios",
     "open:android": "cap open android",
-    "build:apk": "cd android && ./gradlew assembleRelease"
+    "build:apk": "cd android && ./gradlew assembleRelease",
+    "build:aab": "cd android && ./gradlew bundleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^7.0.0",
