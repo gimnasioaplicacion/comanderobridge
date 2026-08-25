@@ -35,7 +35,7 @@ set_bool ITSAppUsesNonExemptEncryption false
 # Corregir metadatos de SwiftSocket/CocoaPods que Xcode puede seguir leyendo como Swift 3.
 if [ -d "$PODS_DIR" ]; then
   while IFS= read -r -d '' file; do
-    perl -pi -e 's/SWIFT_VERSION\s*=\s*["\x27]?(?:3|3\.0)["\x27]?\s*;?/SWIFT_VERSION = 5.0;/g; s/LastSwiftMigration\s*=\s*["\x27]?[^;\n"\x27]+["\x27]?\s*;?/LastSwiftMigration = 1500;/g; s/LastUpgradeCheck\s*=\s*["\x27]?[^;\n"\x27]+["\x27]?\s*;?/LastUpgradeCheck = 1500;/g' "$file"
+    perl -pi -e 's/SWIFT_VERSION[ \t]*=[ \t]*["\x27]?(?:3\.0|3)["\x27]?[ \t]*;?/SWIFT_VERSION = 5.0;/g; s/LastSwiftMigration[ \t]*=[ \t]*["\x27]?[^;\n"\x27]+["\x27]?[ \t]*;?/LastSwiftMigration = 1500;/g; s/LastUpgradeCheck[ \t]*=[ \t]*["\x27]?[^;\n"\x27]+["\x27]?[ \t]*;?/LastUpgradeCheck = 1500;/g' "$file"
   done < <(find "$PODS_DIR" -type f \( -name '*.pbxproj' -o -name '*.xcconfig' \) -print0)
   echo "SWIFT_VERSION corregido a 5.0"
 else
