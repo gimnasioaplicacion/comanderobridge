@@ -10,8 +10,8 @@ const bridgeStyles = `
   #webPane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
   .agentHotspot {
     position: absolute;
-    top: max(8px, env(safe-area-inset-top));
-    right: 8px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    right: 10px;
     z-index: 30;
     width: 30px;
     height: 30px;
