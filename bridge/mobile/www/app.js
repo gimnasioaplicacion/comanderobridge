@@ -6,9 +6,39 @@ const VERSION = '1.0.1';
 const KEY = 'comandero-bridge-config';
 
 const $ = (id) => document.getElementById(id);
-const loadConfig = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
-const saveConfig = (c) => localStorage.setItem(KEY, JSON.stringify(c));
-const clearConfig = () => localStorage.removeItem(KEY);
+
+// Persistencia nativa (sobrevive al cierre de la app en iOS/Android) con
+// respaldo en localStorage para la vista previa web.
+const prefs = () => window.Capacitor?.Plugins?.Preferences || null;
+async function loadConfig() {
+  try {
+    const p = prefs();
+    if (p) {
+      const { value } = await p.get({ key: KEY });
+      if (value) {
+        try { localStorage.setItem(KEY, value); } catch {}
+        return JSON.parse(value);
+      }
+      // Migración: si nativo está vacío pero hay algo en localStorage, súbelo.
+      const legacy = localStorage.getItem(KEY);
+      if (legacy) {
+        try { await p.set({ key: KEY, value: legacy }); } catch {}
+        return JSON.parse(legacy);
+      }
+      return null;
+    }
+  } catch {}
+  try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; }
+}
+async function saveConfig(c) {
+  const raw = JSON.stringify(c);
+  try { localStorage.setItem(KEY, raw); } catch {}
+  try { await prefs()?.set({ key: KEY, value: raw }); } catch {}
+}
+async function clearConfig() {
+  try { localStorage.removeItem(KEY); } catch {}
+  try { await prefs()?.remove({ key: KEY }); } catch {}
+}
 
 $('ver').textContent = VERSION;
 
@@ -28,7 +58,7 @@ function renderStatus(status) {
 let status = { online: false, lastJob: null, error: null };
 
 async function boot() {
-  const cfg = loadConfig();
+  const cfg = await loadConfig();
   if (cfg?.agentId && cfg?.pairingCode) {
     $('unpaired').style.display = 'none';
     $('paired').style.display = 'block';
@@ -65,7 +95,7 @@ $('pairBtn').onclick = async () => {
       platform: window.Capacitor?.getPlatform?.() || 'mobile',
       version: VERSION,
     });
-    saveConfig({ agentId: data.id, restaurantId: data.restaurant_id, pairingCode });
+    await saveConfig({ agentId: data.id, restaurantId: data.restaurant_id, pairingCode });
     await stopRunner();
     status = { online: false, lastJob: null, error: null };
     await boot();
@@ -78,7 +108,7 @@ $('pairBtn').onclick = async () => {
 
 $('unpairBtn').onclick = async () => {
   await stopRunner();
-  clearConfig();
+  await clearConfig();
   status = { online: false, lastJob: null, error: null };
   await boot();
 };
