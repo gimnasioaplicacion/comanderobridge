@@ -10,15 +10,22 @@ const bridgeStyles = `
   #webPane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
   .agentHotspot {
     position: absolute;
-    bottom: 0;
-    right: 0;
-    z-index: 10;
-    width: 72px;
-    height: 64px;
+    top: max(8px, env(safe-area-inset-top));
+    right: 8px;
+    z-index: 30;
+    width: 30px;
+    height: 30px;
     padding: 0;
-    background: transparent;
-    border: 0;
-    opacity: 0;
+    border-radius: 50%;
+    background: rgba(11, 18, 32, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.45);
+    color: #e2e8f0;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.45;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
   .agentOverlay {
@@ -118,7 +125,7 @@ function BridgeApp() {
         onClick={() => setAgentOpen(true)}
         aria-label="Abrir agente de impresión"
       >
-        <span className="dot" id="dotTop" />
+        <span className="dot" id="dotTop" style={{ width: 10, height: 10 }} />
       </button>
 
       <div className="agentOverlay" style={{ display: agentOpen ? "flex" : "none" }}>
