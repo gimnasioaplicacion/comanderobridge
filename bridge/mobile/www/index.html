@@ -92,8 +92,14 @@
   <script>
     (function () {
       var bridge = document.getElementById('bridgePane');
-      document.getElementById('openAgent').onclick = function () { bridge.hidden = false; };
-      document.getElementById('closeAgent').onclick = function () { bridge.hidden = true; };
+      var open = document.getElementById('openAgent');
+      var close = document.getElementById('closeAgent');
+      function show(e) { if (e) { e.preventDefault(); e.stopPropagation(); } bridge.hidden = false; }
+      function hide(e) { if (e) { e.preventDefault(); e.stopPropagation(); } bridge.hidden = true; }
+      ['touchend', 'pointerup', 'click'].forEach(function (ev) {
+        open.addEventListener(ev, show, { passive: false });
+        close.addEventListener(ev, hide, { passive: false });
+      });
     })();
   </script>
   <script type="module" src="app.js"></script>
