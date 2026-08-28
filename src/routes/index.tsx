@@ -10,15 +10,15 @@ const bridgeStyles = `
   #webPane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
   .agentHotspot {
     position: absolute;
-    top: max(8px, env(safe-area-inset-top));
-    right: 8px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    right: 10px;
     z-index: 30;
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     border-radius: 50%;
-    background: rgba(11, 18, 32, 0.55);
-    border: 1px solid rgba(148, 163, 184, 0.45);
+    background: rgba(11, 18, 32, 0.28);
+    border: 1px solid rgba(148, 163, 184, 0.25);
     color: #e2e8f0;
     font-size: 14px;
     line-height: 1;
