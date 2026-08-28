@@ -9,9 +9,10 @@
   html, body { height: 100%; }
   body { margin: 0; background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
   .agentHotspot {
-    position: fixed; bottom: 0; right: 0; z-index: 30;
-    width: 72px; height: 64px; padding: 0; margin: 0;
-    background: transparent; border: 0; opacity: 0;
+    position: fixed; top: max(8px, env(safe-area-inset-top)); right: 8px; z-index: 30;
+    width: 30px; height: 30px; padding: 0; margin: 0; border-radius: 50%;
+    background: rgba(11,18,32,0.55); border: 1px solid rgba(148,163,184,0.45);
+    color: #e2e8f0; opacity: 0.45; display: flex; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent;
   }
   .agentHead { display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; }
@@ -81,7 +82,7 @@
     </section>
   </main>
 
-  <button id="openAgent" type="button" class="agentHotspot" aria-label="Abrir agente de impresión"></button>
+  <button id="openAgent" type="button" class="agentHotspot" aria-label="Abrir agente de impresión"><span class="dot"></span></button>
 
   <script>
     (function () {
