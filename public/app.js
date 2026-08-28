@@ -95,7 +95,7 @@ $('pairBtn').onclick = async () => {
       platform: window.Capacitor?.getPlatform?.() || 'mobile',
       version: VERSION,
     });
-    saveConfig({ agentId: data.id, restaurantId: data.restaurant_id, pairingCode });
+    await saveConfig({ agentId: data.id, restaurantId: data.restaurant_id, pairingCode });
     await stopRunner();
     status = { online: false, lastJob: null, error: null };
     await boot();
@@ -108,7 +108,7 @@ $('pairBtn').onclick = async () => {
 
 $('unpairBtn').onclick = async () => {
   await stopRunner();
-  clearConfig();
+  await clearConfig();
   status = { online: false, lastJob: null, error: null };
   await boot();
 };
