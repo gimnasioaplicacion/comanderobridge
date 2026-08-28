@@ -8,27 +8,19 @@ const bridgeStyles = `
   .shell { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
   #webPane { position: absolute; inset: 0; z-index: 1; }
   #webPane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-  .agentFab {
+  .agentHotspot {
     position: absolute;
-    top: max(10px, env(safe-area-inset-top));
-    right: 10px;
+    bottom: 0;
+    right: 0;
     z-index: 10;
-    width: auto;
-    padding: 8px 12px;
-    background: rgba(11, 18, 32, 0.85);
-    border: 1px solid #334155;
-    color: #e2e8f0;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    width: 72px;
+    height: 64px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    opacity: 0;
+    -webkit-tap-highlight-color: transparent;
   }
-  .agentFab .dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; display: inline-block; }
-  .agentFab .dot.on { background: #22c55e; } .agentFab .dot.err { background: #ef4444; }
   .agentOverlay {
     position: absolute;
     inset: 0;
@@ -122,16 +114,14 @@ function BridgeApp() {
 
       <button
         type="button"
-        className="agentFab"
+        className="agentHotspot"
         onClick={() => setAgentOpen(true)}
         aria-label="Abrir agente de impresión"
       >
         <span className="dot" id="dotTop" />
-        <span>Agente</span>
       </button>
 
-      {agentOpen && (
-        <div className="agentOverlay">
+      <div className="agentOverlay" style={{ display: agentOpen ? "flex" : "none" }}>
           <div className="agentHeader">
             <h1>Agente de impresión</h1>
             <button
@@ -191,8 +181,7 @@ function BridgeApp() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
