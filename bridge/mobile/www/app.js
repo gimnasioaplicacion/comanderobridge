@@ -42,6 +42,15 @@ async function clearConfig() {
 
 $('ver').textContent = VERSION;
 
+// En iOS el WebView debe empezar debajo de la barra de estado. Se aplica
+// también en tiempo de ejecución para que la configuración no dependa de una
+// instalación anterior de Capacitor conservada por Xcode.
+async function configureNativeViewport() {
+  const statusBar = window.Capacitor?.Plugins?.StatusBar;
+  if (!statusBar || window.Capacitor?.getPlatform?.() !== 'ios') return;
+  try { await statusBar.setOverlaysWebView({ overlay: false }); } catch {}
+}
+
 function renderStatus(status) {
   const cls = 'dot' + (status.online ? ' on' : status.error ? ' err' : '');
   const dot = $('dot');
@@ -58,6 +67,7 @@ function renderStatus(status) {
 let status = { online: false, lastJob: null, error: null };
 
 async function boot() {
+  await configureNativeViewport();
   const cfg = await loadConfig();
   if (cfg?.agentId && cfg?.pairingCode) {
     $('unpaired').style.display = 'none';
