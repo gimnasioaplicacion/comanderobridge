@@ -11,13 +11,10 @@ const bridgeStyles = `
     inset: 0;
     z-index: 1;
     box-sizing: border-box;
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
     background: #fff;
   }
   #webPane iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
+
   .agentHotspot {
     position: absolute;
     top: max(6px, env(safe-area-inset-top));
