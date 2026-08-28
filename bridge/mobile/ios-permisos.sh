@@ -19,6 +19,9 @@ set_bool() { /usr/libexec/PlistBuddy -c "Delete :$1" "$PLIST" 2>/dev/null || tru
 
 set_str NSLocalNetworkUsageDescription "Comandero Bridge necesita la red local para enviar los tickets a la impresora."
 set_bool ITSAppUsesNonExemptEncryption false
+# Requerido por @capacitor/status-bar para que iOS reserve físicamente la zona
+# de fecha/hora en vez de superponerla sobre el WebView.
+set_bool UIViewControllerBasedStatusBarAppearance true
 
 /usr/libexec/PlistBuddy -c "Delete :NSBonjourServices" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :NSBonjourServices array" "$PLIST"
