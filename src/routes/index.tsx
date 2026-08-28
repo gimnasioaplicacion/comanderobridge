@@ -16,27 +16,33 @@ const bridgeStyles = `
   #webPane iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
 
   .agentHotspot {
-    position: absolute;
-    top: max(6px, env(safe-area-inset-top));
-    left: 6px;
-    z-index: 30;
-    width: 18px;
-    height: 18px;
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 2px);
+    left: 2px;
+    z-index: 2147483647;
+    width: 44px;
+    height: 44px;
     padding: 0;
-    border-radius: 50%;
-    background: rgba(11, 18, 32, 0.18);
-    border: 1px solid rgba(148, 163, 184, 0.15);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: #e2e8f0;
-    font-size: 10px;
-    line-height: 1;
-    opacity: 0.35;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;
+    justify-content: flex-start;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    cursor: pointer;
     pointer-events: auto;
   }
-  .agentHotspot .dot { width: 6px; height: 6px; }
+  .agentHotspot .dot {
+    width: 8px;
+    height: 8px;
+    margin: 4px 0 0 4px;
+    opacity: 0.35;
+    background: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+  }
   .agentOverlay {
     position: absolute;
     inset: 0;
