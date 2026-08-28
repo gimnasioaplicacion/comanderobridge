@@ -150,6 +150,20 @@ function fromBase64(b64) {
 function isUtf8Start(b) { return b >= 0xC2 && b <= 0xF4; }
 function utf8Len(b) { return b < 0xE0 ? 2 : b < 0xF0 ? 3 : 4; }
 
+function isValidUtf8At(bytes, i, len) {
+  if (i + len > bytes.length) return false;
+  for (let n = 1; n < len; n++) {
+    if (bytes[i + n] < 0x80 || bytes[i + n] > 0xBF) return false;
+  }
+  return true;
+}
+
+function copyBytes(out, bytes, start, length) {
+  const end = Math.min(bytes.length, start + length);
+  for (let n = start; n < end; n++) out.push(bytes[n]);
+  return end;
+}
+
 function normalizeEscPos(bytes) {
   const out = [];
   const dec = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: true }) : null;
@@ -157,6 +171,10 @@ function normalizeEscPos(bytes) {
   while (i < bytes.length) {
     const b = bytes[i];
     const b1 = bytes[i + 1], b2 = bytes[i + 2];
+
+    // El ticket suele comenzar con ESC @. Se elimina porque, si se conserva
+    // después de nuestra cabecera, resetea CP858 y hace desaparecer tildes/€.
+    if (b === 0x1B && b1 === 0x40) { i += 2; continue; }
 
     // GS v 0 : imagen raster (logo) -> se descarta
     if (b === 0x1D && b1 === 0x76 && b2 === 0x30) {
@@ -181,6 +199,22 @@ function normalizeEscPos(bytes) {
     // ESC t n / ESC R n : la tabla de caracteres la fijamos nosotros
     if (b === 0x1B && (b1 === 0x74 || b1 === 0x52)) { i += 3; continue; }
 
+    // Comandos de posicionamiento: sus parámetros son bytes binarios, no texto.
+    // Se copian sin reinterpretarlos para conservar columnas y precios a derecha.
+    if (b === 0x1B && (b1 === 0x24 || b1 === 0x5C)) { i = copyBytes(out, bytes, i, 4); continue; }
+    if (b === 0x1D && (b1 === 0x4C || b1 === 0x57)) { i = copyBytes(out, bytes, i, 4); continue; }
+    // Tabuladores horizontales: ESC D n1...nk NUL.
+    if (b === 0x1B && b1 === 0x44) {
+      do { out.push(bytes[i]); i += 1; } while (i < bytes.length && bytes[i - 1] !== 0x00);
+      continue;
+    }
+    // Bloques GS ( k (QR) y otros GS ( x: pL/pH indican los bytes siguientes.
+    if (b === 0x1D && b1 === 0x28 && i + 4 < bytes.length) {
+      const length = 5 + bytes[i + 3] + bytes[i + 4] * 256;
+      i = copyBytes(out, bytes, i, length);
+      continue;
+    }
+
     // Algunos tickets cobrados llegan separados sólo con CR. Muchas impresoras
     // térmicas lo interpretan como retorno al inicio de la misma línea y el texto
     // siguiente queda superpuesto. Unificamos CR, CRLF y LFCR como un único LF.
@@ -199,6 +233,7 @@ function normalizeEscPos(bytes) {
 
     if (isUtf8Start(b) && dec) {
       const len = utf8Len(b);
+      if (!isValidUtf8At(bytes, i, len)) { out.push(b); i += 1; continue; }
       const slice = bytes.subarray(i, i + len);
       let ch = null;
       try { ch = dec.decode(slice); } catch { ch = null; }
