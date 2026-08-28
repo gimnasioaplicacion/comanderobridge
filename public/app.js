@@ -2,7 +2,7 @@ import { startRunner, stopRunner, restRequestWith, printTest } from './runner.js
 
 const SB_URL = 'https://mfzutyocbmwcjjiywzsn.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1menV0eW9jYm13Y2pqaXl3enNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTQ5NzQsImV4cCI6MjA5MzAzMDk3NH0.INDptBoWSFJ7dJ_j8ipUq3KYMp4V82eRG_iZN0Isg-w';
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const KEY = 'comandero-bridge-config';
 
 const $ = (id) => document.getElementById(id);

@@ -5,6 +5,12 @@
   "ios": {
     "contentInset": "never"
   },
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": false,
+      "style": "LIGHT"
+    }
+  },
   "android": {
     "allowMixedContent": true
   }
