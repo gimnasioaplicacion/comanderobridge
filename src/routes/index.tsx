@@ -5,9 +5,19 @@ const bridgeStyles = `
   :root { color-scheme: dark; font-family: -apple-system, system-ui, "Segoe UI", sans-serif; }
   html, body, #root { height: 100%; }
   body { margin: 0; background: #0f172a; color: #e2e8f0; overflow: hidden; }
-  .shell { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
-  #webPane { position: absolute; inset: 0; z-index: 1; }
-  #webPane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+  .shell { position: relative; width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; }
+  #webPane {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    background: #fff;
+  }
+  #webPane iframe { display: block; width: 100%; height: 100%; border: 0; background: #fff; }
   .agentHotspot {
     position: absolute;
     top: max(6px, env(safe-area-inset-top));

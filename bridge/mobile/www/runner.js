@@ -143,11 +143,73 @@ function fromBase64(b64) {
   return out;
 }
 
+// -------- normalización de bytes ESC/POS recibidos --------
+// Comandero envía el ticket ya en ESC/POS pero codificado en UTF-8 (y con logo).
+// Aquí se reconvierte a CP858 byte a byte (así se conservan €, tildes y la
+// alineación de columnas) y se eliminan las imágenes/logo.
+function isUtf8Start(b) { return b >= 0xC2 && b <= 0xF4; }
+function utf8Len(b) { return b < 0xE0 ? 2 : b < 0xF0 ? 3 : 4; }
+
+function normalizeEscPos(bytes) {
+  const out = [];
+  const dec = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: true }) : null;
+  let i = 0;
+  while (i < bytes.length) {
+    const b = bytes[i];
+    const b1 = bytes[i + 1], b2 = bytes[i + 2];
+
+    // GS v 0 : imagen raster (logo) -> se descarta
+    if (b === 0x1D && b1 === 0x76 && b2 === 0x30) {
+      const xL = bytes[i + 4] || 0, xH = bytes[i + 5] || 0;
+      const yL = bytes[i + 6] || 0, yH = bytes[i + 7] || 0;
+      i += 8 + (xL + xH * 256) * (yL + yH * 256);
+      continue;
+    }
+    // ESC * : imagen bit-image -> se descarta
+    if (b === 0x1B && b1 === 0x2A) {
+      const m = b2 || 0, nL = bytes[i + 3] || 0, nH = bytes[i + 4] || 0;
+      const k = nL + nH * 256;
+      i += 5 + (m === 32 || m === 33 ? k * 3 : k);
+      continue;
+    }
+    // GS ( L / GS 8 L : gráficos almacenados -> se descarta
+    if (b === 0x1D && b1 === 0x28 && b2 === 0x4C) {
+      const pL = bytes[i + 3] || 0, pH = bytes[i + 4] || 0;
+      i += 5 + pL + pH * 256;
+      continue;
+    }
+    // ESC t n / ESC R n : la tabla de caracteres la fijamos nosotros
+    if (b === 0x1B && (b1 === 0x74 || b1 === 0x52)) { i += 3; continue; }
+
+    if (b < 0x80) { out.push(b); i += 1; continue; }
+
+    if (isUtf8Start(b) && dec) {
+      const len = utf8Len(b);
+      const slice = bytes.subarray(i, i + len);
+      let ch = null;
+      try { ch = dec.decode(slice); } catch { ch = null; }
+      if (ch && ch.length) {
+        const mapped = CP858_MAP[ch];
+        out.push(mapped != null ? mapped : (ch.charCodeAt(0) < 0x80 ? ch.charCodeAt(0) : 0x3F));
+        i += len;
+        continue;
+      }
+    }
+    // ya venía en una codificación de 1 byte: se respeta tal cual
+    out.push(b);
+    i += 1;
+  }
+  // ESC @ + CP858 + España al principio, avance y corte al final
+  const head = [0x1B, 0x40, 0x1B, 0x74, 19, 0x1B, 0x52, 0x07];
+  return Uint8Array.from(head.concat(out));
+}
+
 async function sendToPrinter(printer, payload, job) {
-  // Si el trabajo ya trae los bytes ESC/POS, se envían tal cual, sin regenerar el ticket.
+  // Si el trabajo ya trae los bytes ESC/POS, se reutilizan (sin regenerar el ticket),
+  // normalizando codificación y quitando el logo.
   const raw = pickRawBase64(payload, job, job?.payload);
   const bytes = raw
-    ? fromBase64(raw)
+    ? normalizeEscPos(fromBase64(raw))
     : buildEscPos(payload || {}, printer.paper_width || 80, !!printer.auto_cut);
   return tcpPrint(printer.host, printer.port || 9100, bytes);
 }
