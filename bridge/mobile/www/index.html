@@ -8,20 +8,19 @@
   :root { color-scheme: dark; font-family: -apple-system, system-ui, "Segoe UI", sans-serif; }
   html, body { height: 100%; }
   body { margin: 0; background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  header.topbar {
-    display: flex; align-items: center; gap: 10px;
-    padding: max(10px, env(safe-area-inset-top)) 14px 10px;
-    background: #0b1220; border-bottom: 1px solid #1e293b; flex: none;
+  .agentHotspot {
+    position: fixed; bottom: 0; right: 0; z-index: 30;
+    width: 72px; height: 64px; padding: 0; margin: 0;
+    background: transparent; border: 0; opacity: 0;
+    -webkit-tap-highlight-color: transparent;
   }
-  .brand { font-size: 15px; font-weight: 700; }
-  .tabs { margin-left: auto; display: flex; gap: 6px; }
-  .tabs button { width: auto; padding: 8px 14px; font-size: 13px; background: transparent; border: 1px solid #334155; color: #cbd5e1; border-radius: 8px; }
-  .tabs button.active { background: #e2552b; border-color: #e2552b; color: #fff; }
+  .agentHead { display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; }
+  .agentHead button { width:auto; padding:8px 14px; font-size:13px; background:transparent; border:1px solid #475569; color:#e2e8f0; border-radius:8px; }
   main { flex: 1; position: relative; min-height: 0; }
   .pane { position: absolute; inset: 0; }
   .pane[hidden] { display: none; }
   #webPane iframe { width: 100%; height: 100%; border: 0; background: #fff; }
-  #bridgePane { overflow: auto; padding: 16px 20px 24px; box-sizing: border-box; }
+  #bridgePane { overflow: auto; padding: max(16px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)); box-sizing: border-box; background: rgba(15,23,42,0.97); z-index: 20; }
   h1 { margin: 0 0 4px; font-size: 22px; }
   .muted { color: #94a3b8; font-size: 13px; }
   .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-top: 16px; }
@@ -39,15 +38,6 @@
 </style>
 </head>
 <body>
-  <header class="topbar">
-    <span class="dot" id="dotTop"></span>
-    <span class="brand">Comandero Bridge</span>
-    <nav class="tabs">
-      <button id="tabWeb" class="active">Comandero</button>
-      <button id="tabBridge">Agente</button>
-    </nav>
-  </header>
-
   <main>
     <!-- Comandero se ejecuta dentro de la propia app: agente y web activos a la vez -->
     <section id="webPane" class="pane">
@@ -55,7 +45,11 @@
     </section>
 
     <section id="bridgePane" class="pane" hidden>
-      <h1>Agente de impresión</h1>
+      <div class="agentHead">
+        <h1>Agente de impresión</h1>
+        <button id="closeAgent" type="button">Cerrar</button>
+      </div>
+      <span class="dot" id="dotTop" style="display:none"></span>
       <div class="muted"><span id="subtitle">Cargando…</span> · v<span id="ver">1.0.0</span></div>
 
       <div id="unpaired" class="card" style="display:none">
@@ -87,19 +81,13 @@
     </section>
   </main>
 
+  <button id="openAgent" type="button" class="agentHotspot" aria-label="Abrir agente de impresión"></button>
+
   <script>
     (function () {
-      var web = document.getElementById('webPane');
       var bridge = document.getElementById('bridgePane');
-      var tw = document.getElementById('tabWeb');
-      var tb = document.getElementById('tabBridge');
-      function show(isWeb) {
-        web.hidden = !isWeb; bridge.hidden = isWeb;
-        tw.classList.toggle('active', isWeb);
-        tb.classList.toggle('active', !isWeb);
-      }
-      tw.onclick = function () { show(true); };
-      tb.onclick = function () { show(false); };
+      document.getElementById('openAgent').onclick = function () { bridge.hidden = false; };
+      document.getElementById('closeAgent').onclick = function () { bridge.hidden = true; };
     })();
   </script>
   <script type="module" src="app.js"></script>
