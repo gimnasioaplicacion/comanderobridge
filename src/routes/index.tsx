@@ -13,8 +13,8 @@ const bridgeStyles = `
     bottom: max(10px, env(safe-area-inset-bottom));
     right: 10px;
     z-index: 30;
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     border-radius: 50%;
     background: rgba(11, 18, 32, 0.55);
