@@ -8,6 +8,7 @@ let cfg = null;
 let onStatus = () => {};
 let heartbeatTimer = null;
 let pollTimer = null;
+let draining = false;
 const seen = new Set();
 
 function setStatus(s) { try { onStatus(s); } catch {} }
@@ -56,6 +57,7 @@ async function heartbeat() {
   } catch (e) { setStatus({ online: false, error: String(e?.message || e) }); }
 }
 
+// Un único intento por trabajo: si falla, se marca como error y no se reintenta.
 async function processJob(job) {
   if (!job || seen.has(job.id)) return;
   seen.add(job.id);
@@ -77,7 +79,7 @@ async function processJob(job) {
     return;
   }
   try {
-    await sendToPrinter(printer, job.payload);
+    await sendToPrinter(printer, job.payload ?? claimed.payload ?? null, job);
     await rpc('agent_finish_job', {
       p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_job_id: job.id, p_ok: true,
     });
@@ -91,8 +93,10 @@ async function processJob(job) {
   }
 }
 
+// Procesa consecutivamente todos los trabajos nuevos, uno detrás de otro.
 async function drainPending() {
-  if (!cfg) return;
+  if (!cfg || draining) return;
+  draining = true;
   try {
     const data = await rpc('agent_pending_jobs', {
       p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_limit: 50,
@@ -100,6 +104,8 @@ async function drainPending() {
     for (const j of (data ?? [])) await processJob(j);
   } catch (e) {
     setStatus({ online: false, error: String(e?.message || e) });
+  } finally {
+    draining = false;
   }
 }
 
@@ -113,12 +119,36 @@ export async function startRunner(_cfg, _onStatus) {
 
 export async function stopRunner() {
   clearInterval(heartbeatTimer); clearInterval(pollTimer);
-  cfg = null; seen.clear();
+  cfg = null; seen.clear(); draining = false;
 }
 
 // -------- impresión --------
-async function sendToPrinter(printer, payload) {
-  const bytes = buildEscPos(payload, printer.paper_width || 80, !!printer.auto_cut);
+const RAW_KEYS = ['escposBase64', 'dataBase64', 'rawBase64', 'escpos_base64', 'raw_base64'];
+
+function pickRawBase64(...sources) {
+  for (const src of sources) {
+    if (!src || typeof src !== 'object') continue;
+    for (const k of RAW_KEYS) {
+      const v = src[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+  }
+  return null;
+}
+
+function fromBase64(b64) {
+  const bin = atob(String(b64).replace(/\s+/g, ''));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function sendToPrinter(printer, payload, job) {
+  // Si el trabajo ya trae los bytes ESC/POS, se envían tal cual, sin regenerar el ticket.
+  const raw = pickRawBase64(payload, job, job?.payload);
+  const bytes = raw
+    ? fromBase64(raw)
+    : buildEscPos(payload || {}, printer.paper_width || 80, !!printer.auto_cut);
   return tcpPrint(printer.host, printer.port || 9100, bytes);
 }
 
@@ -127,7 +157,9 @@ export async function tcpPrint(host, port, bytes) {
   if (!host) throw new Error('La impresora no tiene IP configurada.');
   const { client } = await TcpSocket.connect({ ipAddress: String(host), port: Number(port) || 9100 });
   try {
+    // Esperar a que el envío termine completamente antes de cerrar el socket.
     await TcpSocket.send({ client, data: toBase64(bytes), encoding: 'base64' });
+    await new Promise((r) => setTimeout(r, 600));
   } finally {
     try { await TcpSocket.disconnect({ client }); } catch {}
   }
@@ -165,6 +197,7 @@ function toCp858(str) {
   return Uint8Array.from(out);
 }
 function pad(s, w) { s = String(s ?? ''); return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length); }
+function padLeft(s, w) { s = String(s ?? ''); return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s; }
 function money(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function fmtDateEs() {
   try {
@@ -182,6 +215,8 @@ function renderText(p, widthMm) {
   if (h.phone) lines.push(center('Tel: ' + h.phone));
   if (h.taxId) lines.push(center('CIF: ' + h.taxId));
   lines.push('');
+  lines.push(center('Factura simplificada'));
+  lines.push('');
   if (h.orderNumber) lines.push(`Ticket: ${h.orderNumber}`);
   if (h.tableName) lines.push(`Mesa: ${h.tableName}`);
   lines.push(fmtDateEs(h.createdAt));
@@ -196,13 +231,13 @@ function renderText(p, widthMm) {
   lines.push(sep);
   if (p.totals) {
     const W = 12;
-    if (p.totals.subtotal != null) lines.push(pad('Subtotal', cols - W) + pad(money(p.totals.subtotal), W));
-    if (p.totals.base != null) lines.push(pad('Base imponible', cols - W) + pad(money(p.totals.base), W));
+    if (p.totals.subtotal != null) lines.push(pad('Subtotal', cols - W) + padLeft(money(p.totals.subtotal), W));
+    if (p.totals.base != null) lines.push(pad('Base imponible', cols - W) + padLeft(money(p.totals.base), W));
     if (p.totals.tax != null) {
       const label = p.totals.vatRate != null ? `IVA (${p.totals.vatRate}%)` : 'IVA';
-      lines.push(pad(label, cols - W) + pad(money(p.totals.tax), W));
+      lines.push(pad(label, cols - W) + padLeft(money(p.totals.tax), W));
     }
-    lines.push(pad('TOTAL', cols - W) + pad(money(p.totals.total), W));
+    lines.push(pad('TOTAL', cols - W) + padLeft(money(p.totals.total), W));
   }
   if (p.paymentMethod) { lines.push(''); lines.push(center(`Pago: ${p.paymentMethod}`)); }
   if (p.footer) { lines.push(''); for (const l of String(p.footer).split(/\r?\n/)) lines.push(center(l)); }
@@ -210,8 +245,10 @@ function renderText(p, widthMm) {
 }
 export function buildEscPos(p, widthMm, cut) {
   const body = toCp858(renderText(p, widthMm));
+  // ESC @ (reset), ESC t 19 (CP858), ESC R 7 (España)
   const head = [0x1B, 0x40, 0x1B, 0x74, 19, 0x1B, 0x52, 0x07];
-  const tail = cut ? [0x1B, 0x33, 0x00, 0x1D, 0x56, 0x01] : [];
+  // ESC d 5 (avanzar papel) antes de GS V 0 (corte)
+  const tail = cut ? [0x1B, 0x64, 0x05, 0x1D, 0x56, 0x00] : [0x1B, 0x64, 0x05];
   const out = new Uint8Array(head.length + body.length + tail.length);
   out.set(head, 0);
   out.set(body, head.length);
@@ -224,7 +261,6 @@ export async function printTest(host, port) {
     header: { businessName: 'COMANDERO BRIDGE', createdAt: new Date().toISOString() },
     lines: [{ qty: 1, name: 'Prueba de impresión', price: 0 }],
     totals: { total: 0 },
-    footer: 'Si lees esto, el agente funciona ✓',
   };
   await tcpPrint(host, port || 9100, buildEscPos(payload, 80, true));
 }
