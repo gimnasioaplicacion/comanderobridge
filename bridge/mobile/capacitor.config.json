@@ -3,7 +3,7 @@
   "appName": "Comandero Bridge",
   "webDir": "www",
   "ios": {
-    "contentInset": "always"
+    "contentInset": "never"
   },
   "android": {
     "allowMixedContent": true
