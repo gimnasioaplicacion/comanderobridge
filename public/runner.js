@@ -189,8 +189,8 @@ function normalizeEscPos(bytes) {
       let ch = null;
       try { ch = dec.decode(slice); } catch { ch = null; }
       if (ch && ch.length) {
-        const mapped = CP858_MAP[ch];
-        out.push(mapped != null ? mapped : (ch.charCodeAt(0) < 0x80 ? ch.charCodeAt(0) : 0x3F));
+        for (const c of ch) out.push(encodeChar(c));
+
         i += len;
         continue;
       }
