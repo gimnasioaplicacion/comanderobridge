@@ -150,6 +150,20 @@ function fromBase64(b64) {
 function isUtf8Start(b) { return b >= 0xC2 && b <= 0xF4; }
 function utf8Len(b) { return b < 0xE0 ? 2 : b < 0xF0 ? 3 : 4; }
 
+function isValidUtf8At(bytes, i, len) {
+  if (i + len > bytes.length) return false;
+  for (let n = 1; n < len; n++) {
+    if (bytes[i + n] < 0x80 || bytes[i + n] > 0xBF) return false;
+  }
+  return true;
+}
+
+function copyBytes(out, bytes, start, length) {
+  const end = Math.min(bytes.length, start + length);
+  for (let n = start; n < end; n++) out.push(bytes[n]);
+  return end;
+}
+
 function normalizeEscPos(bytes) {
   const out = [];
   const dec = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: true }) : null;
@@ -157,6 +171,10 @@ function normalizeEscPos(bytes) {
   while (i < bytes.length) {
     const b = bytes[i];
     const b1 = bytes[i + 1], b2 = bytes[i + 2];
+
+    // El ticket suele comenzar con ESC @. Se elimina porque, si se conserva
+    // después de nuestra cabecera, resetea CP858 y hace desaparecer tildes/€.
+    if (b === 0x1B && b1 === 0x40) { i += 2; continue; }
 
     // GS v 0 : imagen raster (logo) -> se descarta
     if (b === 0x1D && b1 === 0x76 && b2 === 0x30) {
@@ -181,6 +199,22 @@ function normalizeEscPos(bytes) {
     // ESC t n / ESC R n : la tabla de caracteres la fijamos nosotros
     if (b === 0x1B && (b1 === 0x74 || b1 === 0x52)) { i += 3; continue; }
 
+    // Comandos de posicionamiento: sus parámetros son bytes binarios, no texto.
+    // Se copian sin reinterpretarlos para conservar columnas y precios a derecha.
+    if (b === 0x1B && (b1 === 0x24 || b1 === 0x5C)) { i = copyBytes(out, bytes, i, 4); continue; }
+    if (b === 0x1D && (b1 === 0x4C || b1 === 0x57)) { i = copyBytes(out, bytes, i, 4); continue; }
+    // Tabuladores horizontales: ESC D n1...nk NUL.
+    if (b === 0x1B && b1 === 0x44) {
+      do { out.push(bytes[i]); i += 1; } while (i < bytes.length && bytes[i - 1] !== 0x00);
+      continue;
+    }
+    // Bloques GS ( k (QR) y otros GS ( x: pL/pH indican los bytes siguientes.
+    if (b === 0x1D && b1 === 0x28 && i + 4 < bytes.length) {
+      const length = 5 + bytes[i + 3] + bytes[i + 4] * 256;
+      i = copyBytes(out, bytes, i, length);
+      continue;
+    }
+
     // Algunos tickets cobrados llegan separados sólo con CR. Muchas impresoras
     // térmicas lo interpretan como retorno al inicio de la misma línea y el texto
     // siguiente queda superpuesto. Unificamos CR, CRLF y LFCR como un único LF.
@@ -199,6 +233,7 @@ function normalizeEscPos(bytes) {
 
     if (isUtf8Start(b) && dec) {
       const len = utf8Len(b);
+      if (!isValidUtf8At(bytes, i, len)) { out.push(b); i += 1; continue; }
       const slice = bytes.subarray(i, i + len);
       let ch = null;
       try { ch = dec.decode(slice); } catch { ch = null; }
@@ -213,8 +248,9 @@ function normalizeEscPos(bytes) {
     out.push(b);
     i += 1;
   }
-  // ESC @ + CP858 + España al principio, avance y corte al final
-  const head = [0x1B, 0x40, 0x1B, 0x74, codepageId(), 0x1B, 0x52, 0x07];
+  // ESC @ + CP858 + España. La página 19 es la que usa el Bridge de escritorio
+  // y contiene directamente todas las vocales acentuadas y el símbolo euro.
+  const head = [0x1B, 0x40, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
   return Uint8Array.from(head.concat(out));
 }
 
@@ -261,23 +297,6 @@ const CP858_MAP = {
   'Ú':0xE9,'Û':0xEA,'Ù':0xEB,'ý':0xEC,'Ý':0xED,'¯':0xEE,'´':0xEF,
   '±':0xF1,'·':0xFA,'¹':0xFB,'³':0xFC,'²':0xFD,
 };
-// Windows-1252 (página 16 de ESC/POS): es la tabla que aceptan casi todas las
-// impresoras térmicas actuales, incluye tildes, ñ, ¡¿ y el símbolo €.
-const CP1252_MAP = {
-  '€':0x80,'‚':0x82,'ƒ':0x83,'„':0x84,'…':0x85,'‡':0x87,'ˆ':0x88,'‰':0x89,
-  'Š':0x8A,'‹':0x8B,'Œ':0x8C,'Ž':0x8E,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,
-  '•':0x95,'–':0x96,'—':0x97,'š':0x9A,'›':0x9B,'œ':0x9C,'ž':0x9E,'Ÿ':0x9F,
-};
-for (let c = 0xA0; c <= 0xFF; c++) CP1252_MAP[String.fromCharCode(c)] = c;
-
-// Página de códigos usada al imprimir. Se puede forzar desde la consola con
-// localStorage.setItem('comandero-bridge-codepage', 'cp858' | 'cp1252').
-function codepageName() {
-  try { return localStorage.getItem('comandero-bridge-codepage') || 'cp1252'; } catch { return 'cp1252'; }
-}
-function codepageMap() { return codepageName() === 'cp858' ? CP858_MAP : CP1252_MAP; }
-function codepageId() { return codepageName() === 'cp858' ? 19 : 16; }
-
 const FALLBACK_MAP = {
   '\u00A0':0x20,'\u2013':0x2D,'\u2014':0x2D,'\u2018':0x27,'\u2019':0x27,
   '\u201C':0x22,'\u201D':0x22,'\u2026':0x2E,'\u202F':0x20,'\u2009':0x20,
@@ -295,8 +314,7 @@ const ASCII_FOLD = {
 function encodeChar(ch) {
   const c = ch.charCodeAt(0);
   if (c < 0x80) return c;
-  const map = codepageMap();
-  if (map[ch] != null) return map[ch];
+  if (CP858_MAP[ch] != null) return CP858_MAP[ch];
   if (FALLBACK_MAP[ch] != null) return FALLBACK_MAP[ch];
   const folded = ASCII_FOLD[ch];
   if (folded) return folded.charCodeAt(0);
@@ -358,7 +376,7 @@ function renderText(p, widthMm) {
 export function buildEscPos(p, widthMm, cut) {
   const body = toCp858(renderText(p, widthMm));
   // ESC @ (reset), ESC t 19 (CP858), ESC R 7 (España)
-  const head = [0x1B, 0x40, 0x1B, 0x74, codepageId(), 0x1B, 0x52, 0x07];
+  const head = [0x1B, 0x40, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
   // ESC d 5 (avanzar papel) antes de GS V 0 (corte)
   const tail = cut ? [0x1B, 0x64, 0x05, 0x1D, 0x56, 0x00] : [0x1B, 0x64, 0x05];
   const out = new Uint8Array(head.length + body.length + tail.length);

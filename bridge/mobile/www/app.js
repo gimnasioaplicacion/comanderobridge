@@ -2,7 +2,7 @@ import { startRunner, stopRunner, restRequestWith, printTest } from './runner.js
 
 const SB_URL = 'https://mfzutyocbmwcjjiywzsn.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1menV0eW9jYm13Y2pqaXl3enNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTQ5NzQsImV4cCI6MjA5MzAzMDk3NH0.INDptBoWSFJ7dJ_j8ipUq3KYMp4V82eRG_iZN0Isg-w';
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const KEY = 'comandero-bridge-config';
 
 const $ = (id) => document.getElementById(id);
@@ -42,6 +42,15 @@ async function clearConfig() {
 
 $('ver').textContent = VERSION;
 
+// En iOS el WebView debe empezar debajo de la barra de estado. Se aplica
+// también en tiempo de ejecución para que la configuración no dependa de una
+// instalación anterior de Capacitor conservada por Xcode.
+async function configureNativeViewport() {
+  const statusBar = window.Capacitor?.Plugins?.StatusBar;
+  if (!statusBar || window.Capacitor?.getPlatform?.() !== 'ios') return;
+  try { await statusBar.setOverlaysWebView({ overlay: false }); } catch {}
+}
+
 function renderStatus(status) {
   const cls = 'dot' + (status.online ? ' on' : status.error ? ' err' : '');
   const dot = $('dot');
@@ -58,6 +67,7 @@ function renderStatus(status) {
 let status = { online: false, lastJob: null, error: null };
 
 async function boot() {
+  await configureNativeViewport();
   const cfg = await loadConfig();
   if (cfg?.agentId && cfg?.pairingCode) {
     $('unpaired').style.display = 'none';
