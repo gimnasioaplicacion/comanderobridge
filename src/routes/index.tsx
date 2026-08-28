@@ -138,6 +138,11 @@ function BridgeApp() {
         type="button"
         className="agentHotspot"
         onClick={() => setAgentOpen(true)}
+        onPointerUp={() => setAgentOpen(true)}
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          setAgentOpen(true);
+        }}
         aria-label="Abrir agente de impresión"
       >
         <span className="dot" id="dotTop" />
