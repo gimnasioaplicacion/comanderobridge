@@ -189,8 +189,8 @@ function normalizeEscPos(bytes) {
       let ch = null;
       try { ch = dec.decode(slice); } catch { ch = null; }
       if (ch && ch.length) {
-        const mapped = CP858_MAP[ch];
-        out.push(mapped != null ? mapped : (ch.charCodeAt(0) < 0x80 ? ch.charCodeAt(0) : 0x3F));
+        for (const c of ch) out.push(encodeChar(c));
+
         i += len;
         continue;
       }
@@ -200,7 +200,7 @@ function normalizeEscPos(bytes) {
     i += 1;
   }
   // ESC @ + CP858 + España al principio, avance y corte al final
-  const head = [0x1B, 0x40, 0x1B, 0x74, 19, 0x1B, 0x52, 0x07];
+  const head = [0x1B, 0x40, 0x1B, 0x74, codepageId(), 0x1B, 0x52, 0x07];
   return Uint8Array.from(head.concat(out));
 }
 
@@ -246,18 +246,54 @@ const CP858_MAP = {
   'Ó':0xE0,'ß':0xE1,'Ô':0xE2,'Ò':0xE3,'õ':0xE4,'Õ':0xE5,'µ':0xE6,'þ':0xE7,'Þ':0xE8,
   'Ú':0xE9,'Û':0xEA,'Ù':0xEB,'ý':0xEC,'Ý':0xED,'¯':0xEE,'´':0xEF,
   '±':0xF1,'·':0xFA,'¹':0xFB,'³':0xFC,'²':0xFD,
-  '\u00A0':0x20,'\u2013':0x2D,'\u2014':0x2D,'\u2018':0x27,'\u2019':0x27,'\u201C':0x22,'\u201D':0x22,'\u2026':0x2E,
 };
+// Windows-1252 (página 16 de ESC/POS): es la tabla que aceptan casi todas las
+// impresoras térmicas actuales, incluye tildes, ñ, ¡¿ y el símbolo €.
+const CP1252_MAP = {
+  '€':0x80,'‚':0x82,'ƒ':0x83,'„':0x84,'…':0x85,'‡':0x87,'ˆ':0x88,'‰':0x89,
+  'Š':0x8A,'‹':0x8B,'Œ':0x8C,'Ž':0x8E,'‘':0x91,'’':0x92,'“':0x93,'”':0x94,
+  '•':0x95,'–':0x96,'—':0x97,'š':0x9A,'›':0x9B,'œ':0x9C,'ž':0x9E,'Ÿ':0x9F,
+};
+for (let c = 0xA0; c <= 0xFF; c++) CP1252_MAP[String.fromCharCode(c)] = c;
+
+// Página de códigos usada al imprimir. Se puede forzar desde la consola con
+// localStorage.setItem('comandero-bridge-codepage', 'cp858' | 'cp1252').
+function codepageName() {
+  try { return localStorage.getItem('comandero-bridge-codepage') || 'cp1252'; } catch { return 'cp1252'; }
+}
+function codepageMap() { return codepageName() === 'cp858' ? CP858_MAP : CP1252_MAP; }
+function codepageId() { return codepageName() === 'cp858' ? 19 : 16; }
+
+const FALLBACK_MAP = {
+  '\u00A0':0x20,'\u2013':0x2D,'\u2014':0x2D,'\u2018':0x27,'\u2019':0x27,
+  '\u201C':0x22,'\u201D':0x22,'\u2026':0x2E,'\u202F':0x20,'\u2009':0x20,
+};
+// Si un carácter no existe en la tabla, se degrada a su equivalente sin tilde
+// (misma anchura, nunca se pierde la letra).
+const ASCII_FOLD = {
+  'á':'a','à':'a','ä':'a','â':'a','ã':'a','å':'a','é':'e','è':'e','ë':'e','ê':'e',
+  'í':'i','ì':'i','ï':'i','î':'i','ó':'o','ò':'o','ö':'o','ô':'o','õ':'o',
+  'ú':'u','ù':'u','ü':'u','û':'u','ñ':'n','ç':'c','ý':'y',
+  'Á':'A','À':'A','Ä':'A','Â':'A','Ã':'A','Å':'A','É':'E','È':'E','Ë':'E','Ê':'E',
+  'Í':'I','Ì':'I','Ï':'I','Î':'I','Ó':'O','Ò':'O','Ö':'O','Ô':'O','Õ':'O',
+  'Ú':'U','Ù':'U','Ü':'U','Û':'U','Ñ':'N','Ç':'C','º':'o','ª':'a','€':'E',
+};
+function encodeChar(ch) {
+  const c = ch.charCodeAt(0);
+  if (c < 0x80) return c;
+  const map = codepageMap();
+  if (map[ch] != null) return map[ch];
+  if (FALLBACK_MAP[ch] != null) return FALLBACK_MAP[ch];
+  const folded = ASCII_FOLD[ch];
+  if (folded) return folded.charCodeAt(0);
+  return 0x3F;
+}
 function toCp858(str) {
   const out = [];
-  for (const ch of String(str)) {
-    const c = ch.charCodeAt(0);
-    if (c < 0x80) out.push(c);
-    else if (CP858_MAP[ch] != null) out.push(CP858_MAP[ch]);
-    else out.push(0x3F);
-  }
+  for (const ch of String(str)) out.push(encodeChar(ch));
   return Uint8Array.from(out);
 }
+
 function pad(s, w) { s = String(s ?? ''); return s.length >= w ? s.slice(0, w) : s + ' '.repeat(w - s.length); }
 function padLeft(s, w) { s = String(s ?? ''); return s.length >= w ? s.slice(0, w) : ' '.repeat(w - s.length) + s; }
 function money(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
@@ -308,7 +344,7 @@ function renderText(p, widthMm) {
 export function buildEscPos(p, widthMm, cut) {
   const body = toCp858(renderText(p, widthMm));
   // ESC @ (reset), ESC t 19 (CP858), ESC R 7 (España)
-  const head = [0x1B, 0x40, 0x1B, 0x74, 19, 0x1B, 0x52, 0x07];
+  const head = [0x1B, 0x40, 0x1B, 0x74, codepageId(), 0x1B, 0x52, 0x07];
   // ESC d 5 (avanzar papel) antes de GS V 0 (corte)
   const tail = cut ? [0x1B, 0x64, 0x05, 0x1D, 0x56, 0x00] : [0x1B, 0x64, 0x05];
   const out = new Uint8Array(head.length + body.length + tail.length);

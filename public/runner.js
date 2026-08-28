@@ -200,7 +200,7 @@ function normalizeEscPos(bytes) {
     i += 1;
   }
   // ESC @ + CP858 + España al principio, avance y corte al final
-  const head = [0x1B, 0x40, 0x1B, 0x74, 19, 0x1B, 0x52, 0x07];
+  const head = [0x1B, 0x40, 0x1B, 0x74, codepageId(), 0x1B, 0x52, 0x07];
   return Uint8Array.from(head.concat(out));
 }
 
@@ -344,7 +344,7 @@ function renderText(p, widthMm) {
 export function buildEscPos(p, widthMm, cut) {
   const body = toCp858(renderText(p, widthMm));
   // ESC @ (reset), ESC t 19 (CP858), ESC R 7 (España)
-  const head = [0x1B, 0x40, 0x1B, 0x74, 19, 0x1B, 0x52, 0x07];
+  const head = [0x1B, 0x40, 0x1B, 0x74, codepageId(), 0x1B, 0x52, 0x07];
   // ESC d 5 (avanzar papel) antes de GS V 0 (corte)
   const tail = cut ? [0x1B, 0x64, 0x05, 0x1D, 0x56, 0x00] : [0x1B, 0x64, 0x05];
   const out = new Uint8Array(head.length + body.length + tail.length);
