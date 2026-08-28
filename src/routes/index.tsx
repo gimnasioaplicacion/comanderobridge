@@ -57,6 +57,8 @@ export const Route = createFileRoute("/")({
 });
 
 function BridgeApp() {
+  const [tab, setTab] = useState<"web" | "bridge">("web");
+
   useEffect(() => {
     const s = document.createElement("script");
     s.type = "module";
@@ -68,51 +70,87 @@ function BridgeApp() {
   }, []);
 
   return (
-    <>
-      <h1>Comandero Bridge</h1>
-      <div className="muted">
-        <span id="subtitle">Cargando…</span> · v<span id="ver">1.0.0</span>
-      </div>
+    <div className="shell">
+      <header className="topbar">
+        <span className="dot" id="dotTop" />
+        <span className="brand">Comandero Bridge</span>
+        <nav className="tabs">
+          <button
+            type="button"
+            className={tab === "web" ? "active" : undefined}
+            onClick={() => setTab("web")}
+          >
+            Comandero
+          </button>
+          <button
+            type="button"
+            className={tab === "bridge" ? "active" : undefined}
+            onClick={() => setTab("bridge")}
+          >
+            Agente
+          </button>
+        </nav>
+      </header>
 
-      <div id="unpaired" className="card" style={{ display: "none" }}>
-        <label htmlFor="code">Código de emparejamiento (6 dígitos)</label>
-        <input id="code" maxLength={6} inputMode="numeric" placeholder="123456" />
-        <div className="sp" />
-        <button id="pairBtn">Vincular</button>
-        <div id="pairErr" className="err" />
-        <p className="muted">
-          Pídelo en la app web:{" "}
-          <strong>Admin → Impresoras → Agentes locales → Vincular nuevo agente</strong>.
-        </p>
-      </div>
+      <main className="panes">
+        <section id="webPane" className="pane" hidden={tab !== "web"}>
+          <iframe
+            id="posFrame"
+            title="Comandero"
+            src="https://pos.comandero.online"
+            allow="clipboard-read; clipboard-write; camera; fullscreen"
+          />
+        </section>
 
-      <div id="paired" className="card" style={{ display: "none" }}>
-        <div className="row">
-          <span className="dot" id="dot" />
-          <strong id="statusText">Iniciando…</strong>
-        </div>
-        <div className="muted" id="lastJob" style={{ marginTop: 6 }} />
-        <div className="sp" />
-        <div className="muted">
-          Mantén esta app abierta en el dispositivo principal. Las impresoras WiFi/LAN se
-          configuran en la app web con su IP y puerto 9100.
-        </div>
-        <div className="sp" />
-        <label htmlFor="testHost">Probar impresora de red por IP</label>
-        <div className="grid2">
-          <input id="testHost" placeholder="192.168.1.50" />
-          <input id="testPort" type="number" defaultValue={9100} />
-        </div>
-        <div className="sp" />
-        <button className="secondary" id="testBtn">
-          Imprimir prueba por IP
-        </button>
-        <div id="testMsg" />
-        <div className="sp" />
-        <button className="secondary" id="unpairBtn">
-          Desvincular este agente
-        </button>
-      </div>
-    </>
+        <section id="bridgePane" className="pane" hidden={tab !== "bridge"}>
+          <h1>Agente de impresión</h1>
+          <div className="muted">
+            <span id="subtitle">Cargando…</span> · v<span id="ver">1.0.0</span>
+          </div>
+
+          <div id="unpaired" className="card" style={{ display: "none" }}>
+            <label htmlFor="code">Código de emparejamiento (6 dígitos)</label>
+            <input id="code" maxLength={6} inputMode="numeric" placeholder="123456" />
+            <div className="sp" />
+            <button id="pairBtn">Vincular</button>
+            <div id="pairErr" className="err" />
+            <p className="muted">
+              Pídelo en la app web:{" "}
+              <strong>Admin → Impresoras → Agentes locales → Vincular nuevo agente</strong>.
+            </p>
+          </div>
+
+          <div id="paired" className="card" style={{ display: "none" }}>
+            <div className="row">
+              <span className="dot" id="dot" />
+              <strong id="statusText">Iniciando…</strong>
+            </div>
+            <div className="muted" id="lastJob" style={{ marginTop: 6 }} />
+            <div className="sp" />
+            <div className="muted">
+              Comandero se abre dentro de esta app, así el agente nunca queda en segundo
+              plano. Las impresoras WiFi/LAN se configuran en Comandero con su IP y puerto
+              9100.
+            </div>
+            <div className="sp" />
+            <label htmlFor="testHost">Probar impresora de red por IP</label>
+            <div className="grid2">
+              <input id="testHost" placeholder="192.168.1.50" />
+              <input id="testPort" type="number" defaultValue={9100} />
+            </div>
+            <div className="sp" />
+            <button className="secondary" id="testBtn">
+              Imprimir prueba por IP
+            </button>
+            <div id="testMsg" />
+            <div className="sp" />
+            <button className="secondary" id="unpairBtn">
+              Desvincular este agente
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }
+
