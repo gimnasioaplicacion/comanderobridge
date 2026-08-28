@@ -181,6 +181,20 @@ function normalizeEscPos(bytes) {
     // ESC t n / ESC R n : la tabla de caracteres la fijamos nosotros
     if (b === 0x1B && (b1 === 0x74 || b1 === 0x52)) { i += 3; continue; }
 
+    // Algunos tickets cobrados llegan separados sólo con CR. Muchas impresoras
+    // térmicas lo interpretan como retorno al inicio de la misma línea y el texto
+    // siguiente queda superpuesto. Unificamos CR, CRLF y LFCR como un único LF.
+    if (b === 0x0D) {
+      out.push(0x0A);
+      i += b1 === 0x0A ? 2 : 1;
+      continue;
+    }
+    if (b === 0x0A) {
+      out.push(0x0A);
+      i += b1 === 0x0D ? 2 : 1;
+      continue;
+    }
+
     if (b < 0x80) { out.push(b); i += 1; continue; }
 
     if (isUtf8Start(b) && dec) {
