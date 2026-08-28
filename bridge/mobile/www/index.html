@@ -9,13 +9,15 @@
   html, body { height: 100%; }
   body { margin: 0; background: #0f172a; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
   .agentHotspot {
-    position: fixed; top: max(6px, env(safe-area-inset-top)); left: 6px; z-index: 30;
-    width: 20px; height: 20px; padding: 0; margin: 0; border-radius: 50%;
-    background: rgba(11,18,32,0.18); border: 1px solid rgba(148,163,184,0.15);
-    color: #e2e8f0; opacity: 0.35; display: flex; align-items: center; justify-content: center;
-    -webkit-tap-highlight-color: transparent;
+    position: fixed; top: calc(env(safe-area-inset-top) + 2px); left: 2px; z-index: 2147483647;
+    width: 44px; height: 44px; padding: 0; margin: 0; border: 0; border-radius: 0;
+    background: transparent; color: #e2e8f0; display: flex; align-items: flex-start; justify-content: flex-start;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; cursor: pointer;
   }
-  .agentHotspot .dot { width: 6px; height: 6px; }
+  .agentHotspot .dot {
+    width: 8px; height: 8px; margin: 4px 0 0 4px; opacity: 0.35;
+    background: #94a3b8; border: 1px solid rgba(148,163,184,0.25);
+  }
   .agentHead { display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; }
   .agentHead button { width:auto; padding:8px 14px; font-size:13px; background:transparent; border:1px solid #475569; color:#e2e8f0; border-radius:8px; }
   main { flex: 1; position: relative; min-height: 0; }
@@ -90,8 +92,14 @@
   <script>
     (function () {
       var bridge = document.getElementById('bridgePane');
-      document.getElementById('openAgent').onclick = function () { bridge.hidden = false; };
-      document.getElementById('closeAgent').onclick = function () { bridge.hidden = true; };
+      var open = document.getElementById('openAgent');
+      var close = document.getElementById('closeAgent');
+      function show(e) { if (e) { e.preventDefault(); e.stopPropagation(); } bridge.hidden = false; }
+      function hide(e) { if (e) { e.preventDefault(); e.stopPropagation(); } bridge.hidden = true; }
+      ['touchend', 'pointerup', 'click'].forEach(function (ev) {
+        open.addEventListener(ev, show, { passive: false });
+        close.addEventListener(ev, hide, { passive: false });
+      });
     })();
   </script>
   <script type="module" src="app.js"></script>
