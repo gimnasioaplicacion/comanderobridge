@@ -1,4 +1,4 @@
-import { startRunner, stopRunner, restRequestWith, printTest } from './runner.js';
+import { startRunner, stopRunner, resumeRunner, isRunning, restRequestWith, printTest } from './runner.js';
 
 const SB_URL = 'https://mfzutyocbmwcjjiywzsn.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1menV0eW9jYm13Y2pqaXl3enNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTQ5NzQsImV4cCI6MjA5MzAzMDk3NH0.INDptBoWSFJ7dJ_j8ipUq3KYMp4V82eRG_iZN0Isg-w';
@@ -51,6 +51,33 @@ async function configureNativeViewport() {
   try { await statusBar.setOverlaysWebView({ overlay: false }); } catch {}
 }
 
+// La pantalla no se apaga: así iPadOS no suspende la app ni descarta el TPV
+// incrustado, y el agente de impresión sigue conectado permanentemente.
+async function keepDeviceAwake() {
+  const ka = window.Capacitor?.Plugins?.KeepAwake;
+  if (!ka) return;
+  try { await ka.keepAwake(); } catch {}
+}
+
+// Al volver de segundo plano NUNCA se recarga ni se reconstruye el TPV:
+// solo se rearma el agente de impresión.
+let lifecycleBound = false;
+function bindLifecycle() {
+  if (lifecycleBound) return;
+  lifecycleBound = true;
+  const wake = () => {
+    keepDeviceAwake();
+    if (isRunning()) resumeRunner();
+  };
+  window.Capacitor?.Plugins?.App?.addListener?.('appStateChange', ({ isActive }) => {
+    if (isActive) wake();
+  });
+  window.Capacitor?.Plugins?.App?.addListener?.('resume', wake);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+  window.addEventListener('focus', wake);
+  window.addEventListener('online', wake);
+}
+
 function renderStatus(status) {
   const cls = 'dot' + (status.online ? ' on' : status.error ? ' err' : '');
   const dot = $('dot');
@@ -68,6 +95,8 @@ let status = { online: false, lastJob: null, error: null };
 
 async function boot() {
   await configureNativeViewport();
+  await keepDeviceAwake();
+  bindLifecycle();
   const cfg = await loadConfig();
   if (cfg?.agentId && cfg?.pairingCode) {
     $('unpaired').style.display = 'none';
