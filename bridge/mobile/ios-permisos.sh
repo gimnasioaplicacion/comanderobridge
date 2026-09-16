@@ -25,8 +25,8 @@ set_bool UIViewControllerBasedStatusBarAppearance true
 # Pantalla completa siempre: evita que Split View/Slide Over del iPad
 # provoque descargas de memoria que congelan el TPV incrustado.
 set_bool UIRequiresFullScreen true
-# No suspender al bloquear/volver: la app y el agente siguen vivos.
-set_bool UIApplicationExitsOnSuspend false
+# Apple rechaza UIApplicationExitsOnSuspend (clave obsoleta): se elimina si existe.
+/usr/libexec/PlistBuddy -c "Delete :UIApplicationExitsOnSuspend" "$PLIST" 2>/dev/null || true
 
 /usr/libexec/PlistBuddy -c "Delete :NSBonjourServices" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :NSBonjourServices array" "$PLIST"
