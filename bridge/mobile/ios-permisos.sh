@@ -22,6 +22,11 @@ set_bool ITSAppUsesNonExemptEncryption false
 # Requerido por @capacitor/status-bar para que iOS reserve físicamente la zona
 # de fecha/hora en vez de superponerla sobre el WebView.
 set_bool UIViewControllerBasedStatusBarAppearance true
+# Pantalla completa siempre: evita que Split View/Slide Over del iPad
+# provoque descargas de memoria que congelan el TPV incrustado.
+set_bool UIRequiresFullScreen true
+# No suspender al bloquear/volver: la app y el agente siguen vivos.
+set_bool UIApplicationExitsOnSuspend false
 
 /usr/libexec/PlistBuddy -c "Delete :NSBonjourServices" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :NSBonjourServices array" "$PLIST"

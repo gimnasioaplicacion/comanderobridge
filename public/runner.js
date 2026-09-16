@@ -109,13 +109,30 @@ async function drainPending() {
   }
 }
 
+function armTimers() {
+  clearInterval(heartbeatTimer); clearInterval(pollTimer);
+  heartbeatTimer = setInterval(heartbeat, 30000);
+  pollTimer = setInterval(drainPending, 900);
+}
+
 export async function startRunner(_cfg, _onStatus) {
   cfg = _cfg; onStatus = _onStatus || (() => {});
   await heartbeat();
-  heartbeatTimer = setInterval(heartbeat, 30000);
-  pollTimer = setInterval(drainPending, 900);
+  armTimers();
   await drainPending();
 }
+
+// Al volver de segundo plano iOS congela los temporizadores: se rearman y se
+// vacía la cola inmediatamente, sin recargar ni reconstruir nada.
+export async function resumeRunner() {
+  if (!cfg) return;
+  armTimers();
+  draining = false;
+  await heartbeat();
+  await drainPending();
+}
+
+export function isRunning() { return !!cfg; }
 
 export async function stopRunner() {
   clearInterval(heartbeatTimer); clearInterval(pollTimer);
