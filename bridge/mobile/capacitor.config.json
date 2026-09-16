@@ -3,7 +3,11 @@
   "appName": "Comandero Bridge",
   "webDir": "www",
   "ios": {
-    "contentInset": "never"
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "limitsNavigationsToAppBoundDomains": false,
+    "preferredContentMode": "mobile",
+    "handleApplicationNotifications": false
   },
   "plugins": {
     "StatusBar": {
