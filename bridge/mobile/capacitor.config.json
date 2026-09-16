@@ -2,6 +2,11 @@
   "appId": "online.comandero.bridge",
   "appName": "Comandero Bridge",
   "webDir": "www",
+  "server": {
+    "url": "https://bridge.comandero.online",
+    "cleartext": false,
+    "allowNavigation": ["*.comandero.online", "comandero.online"]
+  },
   "ios": {
     "contentInset": "never",
     "allowsLinkPreview": false,
