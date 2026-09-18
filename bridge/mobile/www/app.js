@@ -3,6 +3,7 @@
 const BUILD = (() => {
   try { return new URL(import.meta.url).searchParams.get('v') || 'local'; } catch { return 'local'; }
 })();
+try { window.__BRIDGE_BUILD__ = BUILD; } catch { /* sin ventana */ }
 
 const { startRunner, stopRunner, resumeRunner, isRunning, restRequestWith, printTest } =
   await import(`./runner.js?v=${encodeURIComponent(BUILD)}`);
