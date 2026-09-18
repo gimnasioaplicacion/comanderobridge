@@ -1,8 +1,16 @@
-import { startRunner, stopRunner, resumeRunner, isRunning, restRequestWith, printTest } from './runner.js';
+// Marca de build: llega en la URL de este script (?v=...). Se propaga al
+// runner para que el iPad tampoco reutilice una copia cacheada de runner.js.
+const BUILD = (() => {
+  try { return new URL(import.meta.url).searchParams.get('v') || 'local'; } catch { return 'local'; }
+})();
+
+const { startRunner, stopRunner, resumeRunner, isRunning, restRequestWith, printTest } =
+  await import(`./runner.js?v=${encodeURIComponent(BUILD)}`);
 
 const SB_URL = 'https://mfzutyocbmwcjjiywzsn.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1menV0eW9jYm13Y2pqaXl3enNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTQ5NzQsImV4cCI6MjA5MzAzMDk3NH0.INDptBoWSFJ7dJ_j8ipUq3KYMp4V82eRG_iZN0Isg-w';
 const VERSION = '1.0.2';
+
 const KEY = 'comandero-bridge-config';
 
 const $ = (id) => document.getElementById(id);
