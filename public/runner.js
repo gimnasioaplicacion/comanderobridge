@@ -465,6 +465,7 @@ function reportDiag(bytes, job, path) {
       jobId: job?.id ?? null,
       build: (typeof window !== 'undefined' && window.__BRIDGE_BUILD__) || null,
       path,
+      mode: (() => { try { return detectEncoding(bytes); } catch { return null; } })(),
       totalBytes: bytes.length,
       hasHighBytes: high.length > 0,
       highBytes: high,
