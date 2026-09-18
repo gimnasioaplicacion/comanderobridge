@@ -301,17 +301,6 @@ function copyBytes(out, bytes, start, length) {
   return end;
 }
 
-// Tabla Windows-1252 -> CP858. Sustitución pura byte a byte: sin decodificar,
-// sin detección, sin mirar vecinos. Todo byte >= 0x80 sin entrada pasa a
-// "?" (0x3F); ningún byte se elimina ni se convierte en dos.
-const CP1252_TO_CP858 = {
-  0xE1: 0xA0, 0xE9: 0x82, 0xED: 0xA1, 0xF3: 0xA2, 0xFA: 0xA3, // á é í ó ú
-  0xC1: 0xB5, 0xC9: 0x90, 0xCD: 0xD6, 0xD3: 0xE0, 0xDA: 0xE9, // Á É Í Ó Ú
-  0xF1: 0xA4, 0xD1: 0xA5, 0xFC: 0x81, 0xDC: 0x9A,             // ñ Ñ ü Ü
-  0xBF: 0xA8, 0xA1: 0xAD, 0xBA: 0xA7, 0xAA: 0xA6,             // ¿ ¡ º ª
-  0xB0: 0xF8, 0xB7: 0xFA, 0x80: 0xD5,                         // ° · €
-};
-
 function normalizeEscPos(bytes) {
   const out = [];
   let i = 0;
@@ -321,10 +310,8 @@ function normalizeEscPos(bytes) {
     const b1 = bytes[i + 1], b2 = bytes[i + 2];
 
     // El ticket suele comenzar con ESC @. Se elimina porque, si se conserva
-    // después de nuestra cabecera, resetea CP858 y hace desaparecer tildes/€.
-    // Tras un reset el modo chino puede reactivarse: reemitimos FS . + CP858.
+    // después de nuestra cabecera, resetea CP858.
     if (b === 0x1B && b1 === 0x40) {
-      out.push(0x1C, 0x2E, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07);
       i += 2; continue;
     }
 
@@ -383,16 +370,13 @@ function normalizeEscPos(bytes) {
 
     if (b < 0x80) { out.push(b); i += 1; continue; }
 
-    // Byte alto Windows-1252 -> CP858, 1 byte entra -> 1 byte sale.
-    out.push(CP1252_TO_CP858[b] ?? 0x3F);
+    // Ya venía en una codificación de 1 byte: se respeta tal cual.
+    out.push(b);
     i += 1;
   }
 
-  // ESC @ + FS . (cancela modo chino Kanji; impresoras Sunmi lo traen activo
-  // de fábrica y se comen el byte siguiente a cada byte >= 0x80) + CP858 +
-  // España. La página 19 es la que usa el Bridge de escritorio y contiene
-  // directamente todas las vocales acentuadas y el símbolo euro.
-  const head = [0x1B, 0x40, 0x1C, 0x2E, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
+  // ESC @ + CP858 + España.
+  const head = [0x1B, 0x40, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
   return Uint8Array.from(head.concat(out));
 }
 
