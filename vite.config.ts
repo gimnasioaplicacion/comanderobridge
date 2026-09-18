@@ -6,10 +6,19 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Marca de build automática: cambia en cada compilación/publicación, así los
+// iPads nunca reutilizan una copia en caché del agente de impresión.
+const BRIDGE_BUILD = Date.now().toString(36);
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+  },
+  vite: {
+    define: {
+      __BRIDGE_BUILD__: JSON.stringify(BRIDGE_BUILD),
+    },
   },
 });
