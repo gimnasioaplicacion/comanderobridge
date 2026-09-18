@@ -111,7 +111,7 @@ async function boot() {
   if (cfg?.agentId && cfg?.pairingCode) {
     $('unpaired').style.display = 'none';
     $('paired').style.display = 'block';
-    $('subtitle').textContent = 'Agente vinculado';
+    $('subtitle').textContent = `Agente vinculado · v${VERSION} (build ${BUILD})`;
     renderStatus(status);
     await startRunner(
       { ...cfg, supabaseUrl: SB_URL, supabaseKey: SB_KEY, version: VERSION, platform: window.Capacitor?.getPlatform?.() || 'mobile' },
