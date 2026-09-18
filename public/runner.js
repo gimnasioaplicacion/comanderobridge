@@ -301,9 +301,19 @@ function copyBytes(out, bytes, start, length) {
   return end;
 }
 
+// Tabla Windows-1252 -> CP858. Sustitución pura byte a byte: sin decodificar,
+// sin detección, sin mirar vecinos. Todo byte >= 0x80 sin entrada pasa a
+// "?" (0x3F); ningún byte se elimina ni se convierte en dos.
+const CP1252_TO_CP858 = {
+  0xE1: 0xA0, 0xE9: 0x82, 0xED: 0xA1, 0xF3: 0xA2, 0xFA: 0xA3, // á é í ó ú
+  0xC1: 0xB5, 0xC9: 0x90, 0xCD: 0xD6, 0xD3: 0xE0, 0xDA: 0xE9, // Á É Í Ó Ú
+  0xF1: 0xA4, 0xD1: 0xA5, 0xFC: 0x81, 0xDC: 0x9A,             // ñ Ñ ü Ü
+  0xBF: 0xA8, 0xA1: 0xAD, 0xBA: 0xA7, 0xAA: 0xA6,             // ¿ ¡ º ª
+  0xB0: 0xF8, 0xB7: 0xFA, 0x80: 0xD5,                         // ° · €
+};
+
 function normalizeEscPos(bytes) {
   const out = [];
-  const dec = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: true }) : null;
   let i = 0;
 
   while (i < bytes.length) {
