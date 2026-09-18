@@ -8,8 +8,25 @@ let cfg = null;
 let onStatus = () => {};
 let heartbeatTimer = null;
 let pollTimer = null;
+let printerRefreshTimer = null;
 let draining = false;
+let rerun = false;
 const seen = new Set();
+
+// Realtime (WebSocket) + sondeo de respaldo.
+const FAST_POLL_MS = 900;
+const SLOW_POLL_MS = 3000;
+let ws = null;
+let wsRef = 0;
+let wsHeartbeat = null;
+let wsReconnect = null;
+let realtimeOk = false;
+let realtimeTrusted = true;
+const announced = new Set();
+
+function log(stage, extra) {
+  try { console.log(`[bridge ${new Date().toISOString()}] ${stage}`, extra ?? ''); } catch {}
+}
 
 function setStatus(s) { try { onStatus(s); } catch {} }
 
@@ -57,45 +74,78 @@ async function heartbeat() {
   } catch (e) { setStatus({ online: false, error: String(e?.message || e) }); }
 }
 
+// -------- caché de impresoras --------
+// Evita una llamada a la nube por ticket. Se refresca al arrancar, cada 5 min
+// y siempre que falle un envío (por si cambió la IP).
+const printerCache = new Map();
+
+async function getPrinter(printerId, force) {
+  if (!force && printerCache.has(printerId)) return printerCache.get(printerId);
+  const rows = await rpc('agent_get_printer', {
+    p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_printer_id: printerId,
+  });
+  const printer = Array.isArray(rows) ? rows[0] : null;
+  if (printer) printerCache.set(printerId, printer);
+  return printer;
+}
+
+async function refreshPrinters() {
+  for (const id of [...printerCache.keys()]) {
+    try { await getPrinter(id, true); } catch {}
+  }
+}
+
+// Marcar como impreso fuera del camino crítico (no bloquea el siguiente ticket).
+function finishAsync(jobId, ok, error) {
+  rpc('agent_finish_job', {
+    p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_job_id: jobId,
+    p_ok: !!ok, ...(ok ? {} : { p_error: error || 'Error desconocido' }),
+  })
+    .then(() => log('marcado como impreso', jobId))
+    .catch((e) => log('error al marcar el trabajo', String(e?.message || e)));
+}
+
 // Un único intento por trabajo: si falla, se marca como error y no se reintenta.
 async function processJob(job) {
   if (!job || seen.has(job.id)) return;
   seen.add(job.id);
+  log('trabajo recibido en el bridge', job.id);
+  if (realtimeOk && !announced.has(job.id) && realtimeTrusted) {
+    // Realtime no lo anunció: dejamos de fiarnos y volvemos al sondeo rápido.
+    realtimeTrusted = false;
+    armTimers();
+    log('realtime no anunció el trabajo: sondeo rápido reactivado', job.id);
+  }
   const claimedRows = await rpc('agent_claim_job', {
     p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_job_id: job.id,
   });
   const claimed = Array.isArray(claimedRows) ? claimedRows[0] : null;
   if (!claimed) return;
 
-  const printerRows = await rpc('agent_get_printer', {
-    p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_printer_id: job.printer_id,
-  });
-  const printer = Array.isArray(printerRows) ? printerRows[0] : null;
+  let printer = null;
+  try { printer = await getPrinter(job.printer_id, false); } catch {}
   if (!printer) {
-    await rpc('agent_finish_job', {
-      p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_job_id: job.id,
-      p_ok: false, p_error: 'Impresora no encontrada para este agente',
-    });
+    finishAsync(job.id, false, 'Impresora no encontrada para este agente');
     return;
   }
   try {
     await sendToPrinter(printer, job.payload ?? claimed.payload ?? null, job);
-    await rpc('agent_finish_job', {
-      p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_job_id: job.id, p_ok: true,
-    });
+    log('envío a la impresora completado', job.id);
+    finishAsync(job.id, true);
     setStatus({ lastJob: { id: job.id, ok: true, at: Date.now() } });
   } catch (e) {
     const msg = String(e?.message || e);
-    await rpc('agent_finish_job', {
-      p_agent_id: cfg.agentId, p_pairing_code: String(cfg.pairingCode), p_job_id: job.id, p_ok: false, p_error: msg,
-    });
+    printerCache.delete(job.printer_id);
+    log('error de impresión', msg);
+    finishAsync(job.id, false, msg);
     setStatus({ lastJob: { id: job.id, ok: false, at: Date.now(), error: msg } });
   }
 }
 
 // Procesa consecutivamente todos los trabajos nuevos, uno detrás de otro.
 async function drainPending() {
-  if (!cfg || draining) return;
+  if (!cfg) return;
+  if (draining) { rerun = true; return; }
   draining = true;
   try {
     const data = await rpc('agent_pending_jobs', {
@@ -107,18 +157,84 @@ async function drainPending() {
   } finally {
     draining = false;
   }
+  if (rerun) { rerun = false; await drainPending(); }
+}
+
+// -------- Realtime: los trabajos llegan al instante por WebSocket --------
+function realtimeUrl() {
+  const base = String(cfg.supabaseUrl).replace(/^http/, 'ws').replace(/\/$/, '');
+  return `${base}/realtime/v1/websocket?apikey=${encodeURIComponent(cfg.supabaseKey)}&vsn=1.0.0`;
+}
+
+function scheduleRealtimeReconnect() {
+  if (!cfg || wsReconnect) return;
+  wsReconnect = setTimeout(() => { wsReconnect = null; connectRealtime(); }, 3000);
+}
+
+function connectRealtime() {
+  if (!cfg || ws || typeof WebSocket === 'undefined') return;
+  let sock;
+  try { sock = new WebSocket(realtimeUrl()); } catch { scheduleRealtimeReconnect(); return; }
+  ws = sock;
+  sock.onopen = () => {
+    try {
+      sock.send(JSON.stringify(['1', String(++wsRef), 'realtime:bridge-print-jobs', 'phx_join', {
+        config: {
+          postgres_changes: [{ event: 'INSERT', schema: 'public', table: 'print_jobs' }],
+          broadcast: { ack: false },
+          presence: { key: '' },
+        },
+      }]));
+    } catch {}
+    clearInterval(wsHeartbeat);
+    wsHeartbeat = setInterval(() => {
+      try { sock.send(JSON.stringify([null, String(++wsRef), 'phoenix', 'heartbeat', {}])); } catch {}
+    }, 25000);
+  };
+  sock.onmessage = (ev) => {
+    let msg = null;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    const topic = msg?.[2], event = msg?.[3], payload = msg?.[4];
+    if (event === 'phx_reply' && String(topic || '').startsWith('realtime:')) {
+      if (payload?.status === 'ok') { realtimeOk = true; armTimers(); log('realtime suscrito'); }
+      return;
+    }
+    if (event === 'postgres_changes') {
+      const id = payload?.data?.record?.id;
+      if (id) announced.add(id);
+      log('realtime: nuevo trabajo creado', id);
+      drainPending();
+    }
+  };
+  sock.onerror = () => {};
+  sock.onclose = () => {
+    if (ws === sock) ws = null;
+    realtimeOk = false;
+    clearInterval(wsHeartbeat);
+    armTimers();
+    scheduleRealtimeReconnect();
+  };
+}
+
+function closeRealtime() {
+  clearTimeout(wsReconnect); wsReconnect = null;
+  clearInterval(wsHeartbeat); wsHeartbeat = null;
+  const sock = ws; ws = null; realtimeOk = false;
+  try { sock?.close(); } catch {}
 }
 
 function armTimers() {
-  clearInterval(heartbeatTimer); clearInterval(pollTimer);
+  clearInterval(heartbeatTimer); clearInterval(pollTimer); clearInterval(printerRefreshTimer);
   heartbeatTimer = setInterval(heartbeat, 30000);
-  pollTimer = setInterval(drainPending, 900);
+  pollTimer = setInterval(drainPending, realtimeOk && realtimeTrusted ? SLOW_POLL_MS : FAST_POLL_MS);
+  printerRefreshTimer = setInterval(refreshPrinters, 300000);
 }
 
 export async function startRunner(_cfg, _onStatus) {
   cfg = _cfg; onStatus = _onStatus || (() => {});
   await heartbeat();
   armTimers();
+  connectRealtime();
   await drainPending();
 }
 
@@ -128,6 +244,7 @@ export async function resumeRunner() {
   if (!cfg) return;
   armTimers();
   draining = false;
+  if (!ws || ws.readyState > 1) { closeRealtime(); connectRealtime(); }
   await heartbeat();
   await drainPending();
 }
@@ -135,8 +252,11 @@ export async function resumeRunner() {
 export function isRunning() { return !!cfg; }
 
 export async function stopRunner() {
-  clearInterval(heartbeatTimer); clearInterval(pollTimer);
-  cfg = null; seen.clear(); draining = false;
+  clearInterval(heartbeatTimer); clearInterval(pollTimer); clearInterval(printerRefreshTimer);
+  closeRealtime();
+  await closeSockets();
+  cfg = null; seen.clear(); announced.clear(); printerCache.clear();
+  draining = false; rerun = false; realtimeTrusted = true;
 }
 
 // -------- impresión --------
