@@ -301,45 +301,9 @@ function copyBytes(out, bytes, start, length) {
   return end;
 }
 
-// La nube puede enviar el ticket en UTF-8 o en Windows-1252 (1 byte por
-// carácter). Se decide mirando el ticket COMPLETO: basta con un byte alto que
-// no forme una secuencia UTF-8 válida para tratar todo el payload como 1252.
-function detectEncoding(bytes) {
-  let i = 0;
-  while (i < bytes.length) {
-    const b = bytes[i];
-    if (b < 0x80) { i += 1; continue; }
-    if (isUtf8Start(b) && isValidUtf8At(bytes, i, utf8Len(b))) { i += utf8Len(b); continue; }
-    return 'cp1252';
-  }
-  return 'utf8';
-}
-
-// Caracteres Windows-1252 de la zona 0x80-0x9F (el resto coincide con Unicode).
-const CP1252_HIGH = {
-  0x80: '€', 0x82: '‚', 0x83: 'ƒ', 0x84: '„', 0x85: '…', 0x86: '†', 0x87: '‡',
-  0x88: 'ˆ', 0x89: '‰', 0x8A: 'Š', 0x8B: '‹', 0x8C: 'Œ', 0x8E: 'Ž',
-  0x91: '\u2018', 0x92: '\u2019', 0x93: '\u201C', 0x94: '\u201D', 0x95: '•',
-  0x96: '\u2013', 0x97: '\u2014', 0x98: '˜', 0x99: '™', 0x9A: 'š', 0x9B: '›',
-  0x9C: 'œ', 0x9E: 'ž', 0x9F: 'Ÿ',
-};
-// Traducción byte a byte Windows-1252 -> CP858 (misma longitud siempre).
-let cp1252Table = null;
-function cp1252ToCp858(b) {
-  if (!cp1252Table) {
-    cp1252Table = new Uint8Array(256);
-    for (let n = 0; n < 256; n++) {
-      cp1252Table[n] = n < 0x80 ? n : encodeChar(CP1252_HIGH[n] ?? String.fromCharCode(n));
-    }
-  }
-  return cp1252Table[b];
-}
-
-
 function normalizeEscPos(bytes) {
   const out = [];
   const dec = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: true }) : null;
-  const mode = detectEncoding(bytes);
   let i = 0;
 
   while (i < bytes.length) {
@@ -404,9 +368,6 @@ function normalizeEscPos(bytes) {
     }
 
     if (b < 0x80) { out.push(b); i += 1; continue; }
-
-    // Payload en Windows-1252: traducción directa 1 byte -> 1 byte.
-    if (mode === 'cp1252') { out.push(cp1252ToCp858(b)); i += 1; continue; }
 
     if (isUtf8Start(b) && dec) {
       const len = utf8Len(b);
