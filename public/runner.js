@@ -401,17 +401,48 @@ async function sendToPrinter(printer, payload, job) {
   return tcpPrint(printer.host, printer.port || 9100, bytes);
 }
 
+// Socket TCP persistente por impresora (host:puerto), reutilizado entre
+// tickets y reconectado automáticamente si se cae.
+const sockets = new Map();
+
+async function getSocket(host, port, force) {
+  const key = `${host}:${port}`;
+  if (!force && sockets.has(key)) return { client: sockets.get(key), reused: true };
+  if (sockets.has(key)) {
+    const old = sockets.get(key);
+    sockets.delete(key);
+    try { await TcpSocket.disconnect({ client: old }); } catch {}
+  }
+  const { client } = await TcpSocket.connect({ ipAddress: String(host), port: Number(port) || 9100 });
+  sockets.set(key, client);
+  log('socket listo', key);
+  return { client, reused: false };
+}
+
+async function closeSockets() {
+  for (const [key, client] of [...sockets.entries()]) {
+    sockets.delete(key);
+    try { await TcpSocket.disconnect({ client }); } catch {}
+  }
+}
+
 export async function tcpPrint(host, port, bytes) {
   if (!TcpSocket) throw new Error('Plugin TCP no disponible. Abre el Bridge desde la app instalada.');
   if (!host) throw new Error('La impresora no tiene IP configurada.');
-  const { client } = await TcpSocket.connect({ ipAddress: String(host), port: Number(port) || 9100 });
+  const data = toBase64(bytes);
+  let sock = await getSocket(host, port, false);
   try {
-    // Esperar a que el envío termine completamente antes de cerrar el socket.
-    await TcpSocket.send({ client, data: toBase64(bytes), encoding: 'base64' });
-    await new Promise((r) => setTimeout(r, 600));
-  } finally {
-    try { await TcpSocket.disconnect({ client }); } catch {}
+    // Envío único, con los bytes en el mismo orden que hoy.
+    await TcpSocket.send({ client: sock.client, data, encoding: 'base64' });
+  } catch (e) {
+    // El socket reutilizado estaba caído: reconectar y reenviar una sola vez.
+    if (!sock.reused) throw e;
+    sockets.delete(`${host}:${port}`);
+    sock = await getSocket(host, port, true);
+    await TcpSocket.send({ client: sock.client, data, encoding: 'base64' });
   }
+  // Margen corto de seguridad para que la impresora reciba el bloque completo.
+  await new Promise((r) => setTimeout(r, 120));
 }
 
 function toBase64(bytes) {
