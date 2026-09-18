@@ -322,7 +322,11 @@ function normalizeEscPos(bytes) {
 
     // El ticket suele comenzar con ESC @. Se elimina porque, si se conserva
     // después de nuestra cabecera, resetea CP858 y hace desaparecer tildes/€.
-    if (b === 0x1B && b1 === 0x40) { i += 2; continue; }
+    // Tras un reset el modo chino puede reactivarse: reemitimos FS . + CP858.
+    if (b === 0x1B && b1 === 0x40) {
+      out.push(0x1C, 0x2E, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07);
+      i += 2; continue;
+    }
 
     // GS v 0 : imagen raster (logo) -> se descarta
     if (b === 0x1D && b1 === 0x76 && b2 === 0x30) {
@@ -384,9 +388,11 @@ function normalizeEscPos(bytes) {
     i += 1;
   }
 
-  // ESC @ + CP858 + España. La página 19 es la que usa el Bridge de escritorio
-  // y contiene directamente todas las vocales acentuadas y el símbolo euro.
-  const head = [0x1B, 0x40, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
+  // ESC @ + FS . (cancela modo chino Kanji; impresoras Sunmi lo traen activo
+  // de fábrica y se comen el byte siguiente a cada byte >= 0x80) + CP858 +
+  // España. La página 19 es la que usa el Bridge de escritorio y contiene
+  // directamente todas las vocales acentuadas y el símbolo euro.
+  const head = [0x1B, 0x40, 0x1C, 0x2E, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
   return Uint8Array.from(head.concat(out));
 }
 
@@ -599,8 +605,8 @@ function renderText(p, widthMm) {
 }
 export function buildEscPos(p, widthMm, cut) {
   const body = toCp858(renderText(p, widthMm));
-  // ESC @ (reset), ESC t 19 (CP858), ESC R 7 (España)
-  const head = [0x1B, 0x40, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
+  // ESC @ (reset), FS . (cancela modo chino Kanji), ESC t 19 (CP858), ESC R 7 (España)
+  const head = [0x1B, 0x40, 0x1C, 0x2E, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
   // ESC d 5 (avanzar papel) antes de GS V 0 (corte)
   const tail = cut ? [0x1B, 0x64, 0x05, 0x1D, 0x56, 0x00] : [0x1B, 0x64, 0x05];
   const out = new Uint8Array(head.length + body.length + tail.length);
