@@ -48,9 +48,7 @@ async function clearConfig() {
   try { await prefs()?.remove({ key: KEY }); } catch {}
 }
 
-// Versión + marca de build visibles en pantalla y en el log de arranque:
-// así se sabe de un vistazo si el iPad corre el código nuevo o uno cacheado.
-$('ver').textContent = `${VERSION} (build ${BUILD})`;
+// Versión + marca de build SOLO en el log de arranque (no visible en pantalla):
 try { console.log(`[bridge ${new Date().toISOString()}] arranque agente v${VERSION} build ${BUILD}`); } catch {}
 
 
