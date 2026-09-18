@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+declare const __BRIDGE_BUILD__: string;
+
+
+
 const bridgeStyles = `
   :root { color-scheme: dark; font-family: -apple-system, system-ui, "Segoe UI", sans-serif; }
   html, body, #root { height: 100%; }
@@ -116,12 +120,15 @@ function BridgeApp() {
   useEffect(() => {
     const s = document.createElement("script");
     s.type = "module";
-    s.src = "/app.js";
+    // La marca de build se genera en cada publicación: obliga al iPad a
+    // descargar siempre la última versión del agente, nunca la cacheada.
+    s.src = `/app.js?v=${__BRIDGE_BUILD__}`;
     document.body.appendChild(s);
     return () => {
       s.remove();
     };
   }, []);
+
 
   return (
     <div className="shell">
