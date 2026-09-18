@@ -379,21 +379,8 @@ function normalizeEscPos(bytes) {
 
     if (b < 0x80) { out.push(b); i += 1; continue; }
 
-    if (isUtf8Start(b) && dec) {
-      const len = utf8Len(b);
-      if (!isValidUtf8At(bytes, i, len)) { out.push(b); i += 1; continue; }
-      const slice = bytes.subarray(i, i + len);
-      let ch = null;
-      try { ch = dec.decode(slice); } catch { ch = null; }
-      if (ch && ch.length) {
-        for (const c of ch) out.push(encodeChar(c));
-
-        i += len;
-        continue;
-      }
-    }
-    // ya venía en una codificación de 1 byte: se respeta tal cual
-    out.push(b);
+    // Byte alto Windows-1252 -> CP858, 1 byte entra -> 1 byte sale.
+    out.push(CP1252_TO_CP858[b] ?? 0x3F);
     i += 1;
   }
 
