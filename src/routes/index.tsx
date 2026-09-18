@@ -170,7 +170,7 @@ function BridgeApp() {
           <div className="agentScroll">
             <div className="agentContent">
               <div className="muted">
-                <span id="subtitle">Cargando…</span> · v<span id="ver">1.0.0</span>
+                <span id="subtitle">Cargando…</span>
               </div>
 
               <div id="unpaired" className="card" style={{ display: "none" }}>
