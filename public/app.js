@@ -48,7 +48,11 @@ async function clearConfig() {
   try { await prefs()?.remove({ key: KEY }); } catch {}
 }
 
-$('ver').textContent = VERSION;
+// Versión + marca de build visibles en pantalla y en el log de arranque:
+// así se sabe de un vistazo si el iPad corre el código nuevo o uno cacheado.
+$('ver').textContent = `${VERSION} (build ${BUILD})`;
+try { console.log(`[bridge ${new Date().toISOString()}] arranque agente v${VERSION} build ${BUILD}`); } catch {}
+
 
 // En iOS el WebView debe empezar debajo de la barra de estado. Se aplica
 // también en tiempo de ejecución para que la configuración no dependa de una
