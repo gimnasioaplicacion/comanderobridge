@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+declare const __BRIDGE_BUILD__: string;
+
+
+
 const bridgeStyles = `
   :root { color-scheme: dark; font-family: -apple-system, system-ui, "Segoe UI", sans-serif; }
   html, body, #root { height: 100%; }
