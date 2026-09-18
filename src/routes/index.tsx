@@ -116,12 +116,15 @@ function BridgeApp() {
   useEffect(() => {
     const s = document.createElement("script");
     s.type = "module";
-    s.src = "/app.js";
+    // La marca de build se genera en cada publicación: obliga al iPad a
+    // descargar siempre la última versión del agente, nunca la cacheada.
+    s.src = `/app.js?v=${__BRIDGE_BUILD__}`;
     document.body.appendChild(s);
     return () => {
       s.remove();
     };
   }, []);
+
 
   return (
     <div className="shell">
