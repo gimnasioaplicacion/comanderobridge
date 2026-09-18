@@ -391,15 +391,71 @@ function normalizeEscPos(bytes) {
   return Uint8Array.from(head.concat(out));
 }
 
+// -------- diagnóstico temporal (invisible para el usuario) --------
+// Envía al servidor un resumen de los bytes recibidos del ticket real.
+// No altera en nada los bytes que se mandan a la impresora.
+const DIAG_URL = 'https://bridge.comandero.online/api/public/bridge-diag';
+
+function hexDump(bytes, from, to) {
+  const parts = [];
+  for (let i = Math.max(0, from); i < Math.min(bytes.length, to); i++) {
+    parts.push(bytes[i].toString(16).padStart(2, '0'));
+  }
+  return parts.join(' ');
+}
+
+function findSeq(bytes, text) {
+  const needle = [...text].map((c) => c.charCodeAt(0));
+  outer: for (let i = 0; i + needle.length <= bytes.length; i++) {
+    for (let n = 0; n < needle.length; n++) if (bytes[i + n] !== needle[n]) continue outer;
+    return i;
+  }
+  return -1;
+}
+
+function reportDiag(bytes, job, path) {
+  try {
+    const high = [];
+    for (let i = 0; i < bytes.length && high.length < 20; i++) {
+      if (bytes[i] >= 0x80) high.push(`${i}:${bytes[i].toString(16).padStart(2, '0')}`);
+    }
+    const at = findSeq(bytes, 'Caf');
+    const report = {
+      jobId: job?.id ?? null,
+      build: (typeof window !== 'undefined' && window.__BRIDGE_BUILD__) || null,
+      path,
+      totalBytes: bytes.length,
+      hasHighBytes: high.length > 0,
+      highBytes: high,
+      cafIndex: at,
+      cafHex: at >= 0 ? hexDump(bytes, at - 20, at + 40) : null,
+      at: new Date().toISOString(),
+    };
+    fetch(DIAG_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(report),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {}
+}
+
 async function sendToPrinter(printer, payload, job) {
   // Si el trabajo ya trae los bytes ESC/POS, se reutilizan (sin regenerar el ticket),
   // normalizando codificación y quitando el logo.
   const raw = pickRawBase64(payload, job, job?.payload);
-  const bytes = raw
-    ? normalizeEscPos(fromBase64(raw))
-    : buildEscPos(payload || {}, printer.paper_width || 80, !!printer.auto_cut);
+  let bytes;
+  if (raw) {
+    const src = fromBase64(raw);
+    reportDiag(src, job, 'raw+normalizeEscPos');
+    bytes = normalizeEscPos(src);
+  } else {
+    bytes = buildEscPos(payload || {}, printer.paper_width || 80, !!printer.auto_cut);
+    reportDiag(bytes, job, 'buildEscPos');
+  }
   return tcpPrint(printer.host, printer.port || 9100, bytes);
 }
+
 
 // Socket TCP persistente por impresora (host:puerto), reutilizado entre
 // tickets y reconectado automáticamente si se cae.
