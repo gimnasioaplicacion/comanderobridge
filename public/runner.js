@@ -324,15 +324,17 @@ const CP1252_HIGH = {
   0x9C: 'œ', 0x9E: 'ž', 0x9F: 'Ÿ',
 };
 // Traducción byte a byte Windows-1252 -> CP858 (misma longitud siempre).
-const CP1252_TO_CP858 = (() => {
-  const t = new Uint8Array(256);
-  for (let b = 0; b < 256; b++) {
-    if (b < 0x80) { t[b] = b; continue; }
-    const ch = CP1252_HIGH[b] ?? String.fromCharCode(b);
-    t[b] = encodeChar(ch);
+let cp1252Table = null;
+function cp1252ToCp858(b) {
+  if (!cp1252Table) {
+    cp1252Table = new Uint8Array(256);
+    for (let n = 0; n < 256; n++) {
+      cp1252Table[n] = n < 0x80 ? n : encodeChar(CP1252_HIGH[n] ?? String.fromCharCode(n));
+    }
   }
-  return t;
-})();
+  return cp1252Table[b];
+}
+
 
 function normalizeEscPos(bytes) {
   const out = [];
