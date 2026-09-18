@@ -405,6 +405,9 @@ function normalizeEscPos(bytes) {
 
     if (b < 0x80) { out.push(b); i += 1; continue; }
 
+    // Payload en Windows-1252: traducción directa 1 byte -> 1 byte.
+    if (mode === 'cp1252') { out.push(cp1252ToCp858(b)); i += 1; continue; }
+
     if (isUtf8Start(b) && dec) {
       const len = utf8Len(b);
       if (!isValidUtf8At(bytes, i, len)) { out.push(b); i += 1; continue; }
@@ -422,6 +425,7 @@ function normalizeEscPos(bytes) {
     out.push(b);
     i += 1;
   }
+
   // ESC @ + CP858 + España. La página 19 es la que usa el Bridge de escritorio
   // y contiene directamente todas las vocales acentuadas y el símbolo euro.
   const head = [0x1B, 0x40, 0x1B, 0x74, 0x13, 0x1B, 0x52, 0x07];
